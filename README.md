@@ -7,6 +7,12 @@ A premium responsive login prototype with two sign-in methods:
 
 The frontend uses HTML, CSS, and vanilla JavaScript. The backend uses Python Flask, `face_recognition`, and an Excel workbook as the prototype user database.
 
+## Requirements
+
+- Python 3.11+
+- A webcam or laptop camera for face enrollment and login
+- On Windows, Visual C++ Build Tools may be required if `dlib` needs to compile from source
+
 ## Project Structure
 
 ```text
@@ -14,6 +20,8 @@ frontend/
   index.html
   styles.css
   app.js
+  signup.html
+  signup.js
 backend/
   app.py
   storage.py
@@ -24,7 +32,7 @@ data/
 
 `data/users.xlsx` is created automatically when the backend starts.
 
-## Run
+## Install And Run
 
 ```powershell
 cd backend
@@ -32,6 +40,13 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 python app.py
+```
+
+If `pip install -r requirements.txt` fails on Windows while building `dlib`, install the prebuilt wheel first and then install the face recognition package without forcing a rebuild:
+
+```powershell
+pip install dlib-bin
+pip install face_recognition --no-deps
 ```
 
 Then open:
@@ -78,6 +93,8 @@ Login:
 2. Start the webcam.
 3. Capture one face scan.
 4. Compare the new embedding to the saved template.
+
+The matching threshold is controlled by `FACE_DISTANCE_THRESHOLD` in `backend/app.py`. Lower values are stricter; higher values are more permissive.
 
 ## Prototype Warning
 
