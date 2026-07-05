@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Create Account</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="auth-shell signup-shell">
+      <section class="brand-panel" aria-label="Account setup introduction">
+        <div class="brand-mark" aria-hidden="true">
+          <span></span>
+        </div>
+        <p class="eyebrow">New account</p>
+        <h1>Start secure from the first sign in.</h1>
+        <p class="brand-copy">
+          Create your account with email and password, then enroll a camera-based face scan for faster sign-ins.
+        </p>
+        <dl class="trust-list">
+          <div>
+            <dt>Password protected</dt>
+            <dd>Your password is stored as a salted hash.</dd>
+          </div>
+          <div>
+            <dt>Optional face scan</dt>
+            <dd>Only the face embedding is saved, not the camera photo.</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section class="login-panel" aria-label="Sign up form">
+        <div class="panel-header">
+          <p class="eyebrow">Create profile</p>
+          <h2>Open your account</h2>
+        </div>
+
+        <div class="status-banner" id="status-banner" role="status" aria-live="polite"></div>
+
+        <form class="auth-form" id="signup-form">
+          <label class="field">
+            <span>Full name</span>
+            <input id="name" name="name" type="text" autocomplete="name" placeholder="Alex Morgan" required>
+          </label>
+
+          <label class="field">
+            <span>Email address</span>
+            <input id="email" name="email" type="email" autocomplete="email" placeholder="name@example.com" required>
+          </label>
+
+          <label class="field">
+            <span>Password</span>
+            <span class="password-wrap">
+              <input id="password" name="password" type="password" autocomplete="new-password" placeholder="At least 8 characters" minlength="8" required>
+              <button class="icon-button" id="toggle-password" type="button" aria-label="Show password">Show</button>
+            </span>
+          </label>
+
+          <label class="field">
+            <span>Confirm password</span>
+            <input id="confirm-password" name="confirm-password" type="password" autocomplete="new-password" placeholder="Repeat your password" minlength="8" required>
+          </label>
+
+          <label class="setup-option">
+            <input id="setup-face" name="setup-face" type="checkbox">
+            <span>
+              <strong>Set up camera-based face recognition after signup</strong>
+              <small>Open the webcam, detect one face, and save the face template.</small>
+            </span>
+          </label>
+
+          <div class="camera-box" id="signup-camera-box" hidden>
+            <video id="signup-video" playsinline muted></video>
+            <canvas id="signup-canvas" hidden></canvas>
+            <div>
+              <h3>Face enrollment</h3>
+              <p>Center your face in good light, then capture the enrollment scan.</p>
+            </div>
+          </div>
+
+          <div class="button-pair" id="signup-camera-actions" hidden>
+            <button class="secondary-action" id="start-camera-button" type="button">Start scan</button>
+            <button class="primary-action" id="capture-face-button" type="button">Capture face</button>
+          </div>
+
+          <button class="primary-action" id="signup-button" type="submit">Create account</button>
+
+          <p class="switch-note">
+            Already have an account?
+            <a class="inline-link" href="index.html">Sign in</a>
+          </p>
+        </form>
+      </section>
+    </main>
+
+    <script src="signup.js"></script>
+  </body>
+</html>

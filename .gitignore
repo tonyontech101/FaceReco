@@ -1,0 +1,18 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.env
+.env.*
+
+# Generated app data
+data/users.xlsx
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.vscode/

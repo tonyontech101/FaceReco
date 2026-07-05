@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Secure Sign In</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="auth-shell">
+      <section class="brand-panel" aria-label="Product introduction">
+        <div class="brand-mark" aria-hidden="true">
+          <span></span>
+        </div>
+        <p class="eyebrow">Private access</p>
+        <h1>Sign in with the method you trust.</h1>
+        <p class="brand-copy">
+          Use a camera-based face scan when enrolled, or continue with email and password.
+        </p>
+        <dl class="trust-list">
+          <div>
+            <dt>Camera face scan</dt>
+            <dd>Captures a live frame and compares a face template.</dd>
+          </div>
+          <div>
+            <dt>No raw image storage</dt>
+            <dd>The backend stores the face embedding, not the photo.</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section class="login-panel" aria-label="Login form">
+        <div class="panel-header">
+          <p class="eyebrow">Welcome back</p>
+          <h2>Access your account</h2>
+        </div>
+
+        <div class="method-switch" role="tablist" aria-label="Choose login method">
+          <button class="method-tab is-active" id="face-tab" type="button" role="tab" aria-selected="true" aria-controls="face-panel" data-target="face">
+            <span class="icon" aria-hidden="true">ID</span>
+            Face scan
+          </button>
+          <button class="method-tab" id="email-tab" type="button" role="tab" aria-selected="false" aria-controls="email-panel" data-target="email">
+            <span class="icon" aria-hidden="true">@</span>
+            Email
+          </button>
+        </div>
+
+        <div class="status-banner" id="status-banner" role="status" aria-live="polite"></div>
+
+        <form class="auth-form auth-mode is-active" id="face-panel" role="tabpanel" aria-labelledby="face-tab" data-panel="face">
+          <div class="camera-box">
+            <video id="face-video" playsinline muted></video>
+            <canvas id="face-canvas" hidden></canvas>
+            <div>
+              <h3>Camera-based face recognition</h3>
+              <p id="support-text">Start the camera, center your face, then capture a scan.</p>
+            </div>
+          </div>
+
+          <div class="button-pair">
+            <button class="secondary-action" id="start-camera-button" type="button">Start scan</button>
+            <button class="primary-action" id="face-login-button" type="submit">Capture face</button>
+          </div>
+          <button class="text-action" type="button" data-switch-to="email">Use email and password instead</button>
+          <p class="switch-note">
+            New here?
+            <a class="inline-link" href="/signup">Create an account</a>
+          </p>
+        </form>
+
+        <form class="auth-form auth-mode" id="email-panel" role="tabpanel" aria-labelledby="email-tab" data-panel="email" hidden>
+          <label class="field">
+            <span>Email address</span>
+            <input id="email" name="email" type="email" autocomplete="email" placeholder="name@example.com" required>
+          </label>
+
+          <label class="field">
+            <span>Password</span>
+            <span class="password-wrap">
+              <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Enter your password" required>
+              <button class="icon-button" id="toggle-password" type="button" aria-label="Show password">Show</button>
+            </span>
+          </label>
+
+          <div class="form-row">
+            <label class="remember">
+              <input type="checkbox" name="remember">
+              <span>Remember me</span>
+            </label>
+            <a href="#" class="inline-link">Forgot password?</a>
+          </div>
+
+          <button class="primary-action" type="submit">Sign in</button>
+          <button class="text-action" type="button" data-switch-to="face">Use face recognition instead</button>
+          <p class="switch-note">
+            New here?
+            <a class="inline-link" href="/signup">Create an account</a>
+          </p>
+        </form>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
