@@ -49,19 +49,20 @@
         <div class="status-banner" id="status-banner" role="status" aria-live="polite"></div>
 
         <form class="auth-form auth-mode is-active" id="face-panel" role="tabpanel" aria-labelledby="face-tab" data-panel="face">
-          <div class="camera-box">
-            <video id="face-video" playsinline muted></video>
+          <div class="camera-box" data-scan-state="idle">
+            <div class="camera-frame" aria-hidden="true">
+              <video id="face-video" playsinline muted></video>
+              <span class="scan-frame"></span>
+              <span class="scan-line"></span>
+            </div>
             <canvas id="face-canvas" hidden></canvas>
-            <div>
+            <div class="camera-copy">
               <h3>Camera-based face recognition</h3>
-              <p id="support-text">Start the camera, center your face, then capture a scan.</p>
+              <p id="support-text">Camera starts automatically. Center your face, then capture a scan.</p>
             </div>
           </div>
 
-          <div class="button-pair">
-            <button class="secondary-action" id="start-camera-button" type="button">Start scan</button>
-            <button class="primary-action" id="face-login-button" type="submit">Capture face</button>
-          </div>
+          <button class="primary-action" id="face-login-button" type="submit" disabled>Capture face</button>
           <button class="text-action" type="button" data-switch-to="email">Use email and password instead</button>
           <p class="switch-note">
             New here?

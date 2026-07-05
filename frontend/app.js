@@ -5,16 +5,17 @@ const panels = document.querySelectorAll("[data-panel]");
 const switchButtons = document.querySelectorAll("[data-switch-to]");
 const statusBanner = document.querySelector("#status-banner");
 const supportText = document.querySelector("#support-text");
-const startCameraButton = document.querySelector("#start-camera-button");
 const faceButton = document.querySelector("#face-login-button");
 const faceForm = document.querySelector("#face-panel");
 const emailForm = document.querySelector("#email-panel");
 const togglePassword = document.querySelector("#toggle-password");
 const passwordInput = document.querySelector("#password");
+const cameraBox = document.querySelector(".camera-box");
 const faceVideo = document.querySelector("#face-video");
 const faceCanvas = document.querySelector("#face-canvas");
 
 let cameraStream = null;
+let cameraStartPromise = null;
 
 function showStatus(message, type = "info") {
   statusBanner.textContent = message;
@@ -24,6 +25,11 @@ function showStatus(message, type = "info") {
 function clearStatus() {
   statusBanner.textContent = "";
   statusBanner.className = "status-banner";
+}
+
+function setScanningState(state) {
+  cameraBox.dataset.scanState = state;
+  faceButton.disabled = state !== "ready";
 }
 
 function setMode(mode) {
@@ -43,6 +49,10 @@ function setMode(mode) {
     panel.classList.toggle("is-active", isActive);
     panel.hidden = !isActive;
   });
+
+  if (mode === "face") {
+    startFaceScan().catch(() => null);
+  }
 }
 
 async function setupCamera(videoElement) {
@@ -54,8 +64,8 @@ async function setupCamera(videoElement) {
   const stream = await navigator.mediaDevices.getUserMedia({
     video: {
       facingMode: "user",
-      width: { ideal: 640 },
-      height: { ideal: 480 },
+      width: { ideal: 960 },
+      height: { ideal: 720 },
     },
     audio: false,
   });
@@ -74,11 +84,57 @@ function teardownCamera() {
   cameraStream.getTracks().forEach((track) => track.stop());
   cameraStream = null;
   faceVideo.srcObject = null;
+  setScanningState("idle");
+}
+
+async function startFaceScan() {
+  if (cameraStream) {
+    setScanningState("ready");
+    supportText.textContent = "Camera is ready. Keep one face centered and capture the scan.";
+    return cameraStream;
+  }
+
+  if (cameraStartPromise) {
+    return cameraStartPromise;
+  }
+
+  setScanningState("starting");
+  showStatus("Requesting camera access...");
+  supportText.textContent = "Starting camera. Your browser may ask for permission.";
+
+  cameraStartPromise = setupCamera(faceVideo)
+    .then((stream) => {
+      if (faceForm.hidden) {
+        teardownCamera();
+        return stream;
+      }
+
+      setScanningState("ready");
+      supportText.textContent = "Camera is ready. Keep one face centered and capture the scan.";
+      showStatus("Camera ready. Capture your face scan when ready.", "success");
+      return stream;
+    })
+    .catch((error) => {
+      if (faceForm.hidden) {
+        setScanningState("idle");
+        return null;
+      }
+
+      setScanningState("error");
+      supportText.textContent = "Camera access is needed for face recognition.";
+      showStatus(error.message || "Camera access was denied or unavailable.", "error");
+      throw error;
+    })
+    .finally(() => {
+      cameraStartPromise = null;
+    });
+
+  return cameraStartPromise;
 }
 
 function captureFaceFrame(videoElement, canvasElement) {
   if (!cameraStream || videoElement.readyState < 2) {
-    throw new Error("Start the camera before capturing your face scan.");
+    throw new Error("Wait for the camera preview before capturing your face scan.");
   }
 
   const width = videoElement.videoWidth || 640;
@@ -121,36 +177,34 @@ togglePassword.addEventListener("click", () => {
   togglePassword.setAttribute("aria-label", isHidden ? "Hide password" : "Show password");
 });
 
-startCameraButton.addEventListener("click", async () => {
-  startCameraButton.disabled = true;
-  showStatus("Requesting camera access...");
-
-  try {
-    await setupCamera(faceVideo);
-    supportText.textContent = "Camera is ready. Keep one face centered and capture the scan.";
-    showStatus("Camera started. Capture your face scan when ready.", "success");
-  } catch (error) {
-    showStatus(error.message || "Camera access was denied or unavailable.", "error");
-  } finally {
-    startCameraButton.disabled = false;
-  }
-});
-
 faceForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
+  if (!cameraStream) {
+    await startFaceScan().catch(() => null);
+    if (!cameraStream) {
+      return;
+    }
+  }
+
   faceButton.disabled = true;
+  setScanningState("capturing");
   showStatus("Capturing face scan...");
 
+  let signedIn = false;
   try {
     const image = captureFaceFrame(faceVideo, faceCanvas);
     await loginWithFace(image);
+    signedIn = true;
     showStatus("Face recognition sign-in successful.", "success");
     teardownCamera();
   } catch (error) {
+    setScanningState(cameraStream ? "ready" : "error");
     showStatus(error.message || "Face recognition failed.", "error");
   } finally {
-    faceButton.disabled = false;
+    if (!signedIn && cameraStream) {
+      faceButton.disabled = false;
+    }
   }
 });
 
@@ -181,3 +235,8 @@ emailForm.addEventListener("submit", async (event) => {
 });
 
 window.addEventListener("beforeunload", teardownCamera);
+
+setScanningState("idle");
+if (!faceForm.hidden) {
+  startFaceScan().catch(() => null);
+}
