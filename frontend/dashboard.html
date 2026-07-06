@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Image Recognition Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="dashboard.css">
+  </head>
+  <body>
+    <!-- SVG Icon System -->
+    <svg style="display: none;" aria-hidden="true">
+      <defs>
+        <symbol id="icon-camera" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+          <circle cx="12" cy="13" r="4"></circle>
+        </symbol>
+        <symbol id="icon-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="17 8 12 3 7 8"></polyline>
+          <line x1="12" y1="3" x2="12" y2="15"></line>
+        </symbol>
+        <symbol id="icon-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+          <circle cx="12" cy="7" r="4"></circle>
+        </symbol>
+        <symbol id="icon-image" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+          <circle cx="8.5" cy="8.5" r="1.5"></circle>
+          <polyline points="21 15 16 10 5 21"></polyline>
+        </symbol>
+        <symbol id="icon-aperture" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="14.31" y1="8" x2="20.05" y2="17.94"></line>
+          <line x1="9.69" y1="8" x2="21.17" y2="8"></line>
+          <line x1="7.38" y1="12" x2="13.12" y2="2.06"></line>
+          <line x1="9.69" y1="16" x2="3.95" y2="6.06"></line>
+          <line x1="14.31" y1="16" x2="2.83" y2="16"></line>
+          <line x1="16.62" y1="12" x2="10.88" y2="21.94"></line>
+        </symbol>
+      </defs>
+    </svg>
+
+    <main class="dashboard-shell">
+      <!-- Compact Sidebar -->
+      <aside class="dashboard-sidebar" aria-label="Dashboard navigation">
+        <div class="sidebar-content">
+          <!-- Logo -->
+          <div class="sidebar-logo">
+            <div class="brand-mark" aria-hidden="true">
+              <span></span>
+            </div>
+            <p class="sidebar-tagline">AI Vision</p>
+          </div>
+
+          <!-- Method Toggle -->
+          <div class="method-switch" role="group" aria-label="Choose input method">
+            <button class="method-tab is-active" id="scan-tab" type="button" data-target="scan">
+              <svg class="icon" aria-hidden="true"><use href="#icon-camera"></use></svg>
+              <span>Camera</span>
+            </button>
+            <button class="method-tab" id="upload-tab" type="button" data-target="upload">
+              <svg class="icon" aria-hidden="true"><use href="#icon-upload"></use></svg>
+              <span>Upload</span>
+            </button>
+          </div>
+
+          <!-- User Profile Card -->
+          <div class="user-profile-card">
+            <div class="user-avatar">
+              <svg class="icon" aria-hidden="true"><use href="#icon-user"></use></svg>
+            </div>
+            <div class="user-details">
+              <p class="user-name" id="user-name"></p>
+              <button class="logout-link" id="logout-button" type="button">Sign out</button>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Main Content Area -->
+      <section class="dashboard-main" aria-label="Image recognition interface">
+        <div class="content-wrapper">
+          <div class="status-banner" id="status-banner" role="status" aria-live="polite"></div>
+
+          <!-- Action Panel - Initial State -->
+          <div class="action-panel" id="action-panel">
+            <!-- Scan Panel -->
+            <div class="scan-panel is-active" id="scan-panel">
+              <!-- Camera Card -->
+              <div class="camera-card">
+                <div class="card-header">
+                  <h3 class="card-title">Live Camera</h3>
+                  <div class="camera-status-indicator" id="camera-status-indicator">
+                    <span class="status-dot" data-status="idle"></span>
+                    <span class="status-text" id="camera-status-text">Starting...</span>
+                  </div>
+                </div>
+                
+                <div class="card-body">
+                  <div class="viewfinder-container" id="camera-box" data-scan-state="idle">
+                    <video id="scan-video" playsinline muted></video>
+                    <canvas id="scan-canvas" hidden></canvas>
+                    
+                    <!-- Viewfinder HUD Overlay -->
+                    <div class="viewfinder-hud" aria-hidden="true">
+                      <!-- Grid Overlay -->
+                      <div class="grid-overlay">
+                        <div class="grid-line grid-v1"></div>
+                        <div class="grid-line grid-v2"></div>
+                        <div class="grid-line grid-h1"></div>
+                        <div class="grid-line grid-h2"></div>
+                      </div>
+                      
+                      <!-- Focus Box -->
+                      <div class="focus-box"></div>
+                      
+                      <!-- Corner Brackets -->
+                      <div class="corner-bracket corner-tl"></div>
+                      <div class="corner-bracket corner-tr"></div>
+                      <div class="corner-bracket corner-bl"></div>
+                      <div class="corner-bracket corner-br"></div>
+                      
+                      <!-- Status Text -->
+                      <div class="hud-status" id="camera-status">Initializing camera...</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="card-footer">
+                  <button class="primary-action" id="capture-button" type="button" disabled>Capture</button>
+                  <button class="secondary-action" id="switch-to-upload" type="button">Upload</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Upload Panel -->
+            <div class="upload-panel" id="upload-panel" hidden>
+              <!-- Upload Card -->
+              <div class="camera-card">
+                <div class="card-header">
+                  <h3 class="card-title">Upload Image</h3>
+                  <div class="camera-status-indicator">
+                    <span class="status-text">Choose a file</span>
+                  </div>
+                </div>
+
+                <div class="card-body">
+                  <div class="upload-box" id="upload-box">
+                    <div class="upload-area" id="upload-area">
+                      <svg class="upload-icon" aria-hidden="true"><use href="#icon-upload"></use></svg>
+                      <h3>Drop an image here</h3>
+                      <p>or click to browse your files</p>
+                      <p class="upload-hint">JPEG, PNG, or WebP • Max 5MB</p>
+                      <input type="file" id="file-input" accept="image/jpeg,image/png,image/webp" hidden>
+                    </div>
+                    <div class="preview-area" id="preview-area" hidden>
+                      <img id="preview-image" alt="Preview">
+                      <div class="preview-info">
+                        <p id="preview-name"></p>
+                        <p id="preview-size"></p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="card-footer" id="upload-card-footer">
+                  <button class="secondary-action" id="switch-to-camera" type="button">Use Camera</button>
+                  <button class="secondary-action" id="change-image-button" type="button" hidden>Change Image</button>
+                  <button class="primary-action" id="identify-button" type="button" hidden>Identify Object</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        <!-- Results Panel - Hidden Initially -->
+        <div class="results-panel" id="results-panel" hidden>
+          <!-- Captured Image Card -->
+          <div class="captured-image-card">
+            <div class="card-header">
+              <div>
+                <h3 class="card-title">Captured Image</h3>
+                <p class="capture-timestamp" id="capture-timestamp"></p>
+              </div>
+            </div>
+            
+            <div class="card-body">
+              <div class="hero-image-container">
+                <img id="hero-image" class="hero-image" alt="Captured image">
+              </div>
+            </div>
+          </div>
+
+          <!-- Object Details -->
+          <div class="object-details">
+            <h2 id="object-name" class="object-name"></h2>
+            <p id="object-description" class="object-description"></p>
+            <div class="tags-container" id="tags-container"></div>
+          </div>
+
+          <!-- Similar Images Section -->
+          <div class="similar-section">
+            <div class="section-header">
+              <h3 class="section-title">Similar Images</h3>
+            </div>
+            <div class="featured-grid" id="image-grid">
+              <!-- Empty state placeholder -->
+              <div class="empty-state" id="empty-state">
+                <div class="empty-placeholder">
+                  <svg class="empty-icon" aria-hidden="true"><use href="#icon-image"></use></svg>
+                  <p class="empty-text">No similar images found yet.</p>
+                  <p class="empty-hint">Capture another image to compare.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <button class="primary-action" id="scan-another-button" type="button">Scan Another</button>
+        </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="dashboard.js"></script>
+  </body>
+</html>

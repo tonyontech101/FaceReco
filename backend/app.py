@@ -6,6 +6,7 @@ from io import BytesIO
 from flask import Flask, jsonify, request, send_from_directory
 
 from storage import ExcelUserStore, hash_password, verify_password
+from vision_service import identify_object_and_find_similar
 
 try:
     import face_recognition
@@ -49,6 +50,11 @@ def index():
 @app.route("/signup")
 def signup_page():
     return send_from_directory(FRONTEND_DIR, "signup.html")
+
+
+@app.route("/dashboard")
+def dashboard_page():
+    return send_from_directory(FRONTEND_DIR, "dashboard.html")
 
 
 @app.route("/<path:path>")
@@ -178,6 +184,113 @@ def face_login():
         "distance": comparison["distance"],
         "similarity": comparison["similarity"],
     })
+
+
+@app.route("/api/vision/identify", methods=["POST", "OPTIONS"])
+def identify_object():
+    if request.method == "OPTIONS":
+        return cors_response(jsonify({}))
+
+    payload = request.get_json(silent=True) or {}
+    image_data = payload.get("image") or ""
+    mode = payload.get("mode", "mock")
+
+    # Validate image data
+    if not image_data.startswith("data:image/"):
+        return jsonify({"error": "A valid image is required."}), 400
+
+    try:
+        # Basic validation - decode to check format and size
+        _, encoded = image_data.split(",", 1)
+        image_bytes = base64.b64decode(encoded, validate=True)
+        
+        # Check file size (5MB limit)
+        size_mb = len(image_bytes) / (1024 * 1024)
+        if size_mb > 5:
+            return jsonify({"error": f"Image size ({size_mb:.1f}MB) exceeds 5MB limit."}), 400
+        
+        # Validate format
+        image = Image.open(BytesIO(image_bytes)) if Image else None
+        if image:
+            format_lower = image.format.lower() if image.format else ""
+            if format_lower not in ["jpeg", "png", "webp"]:
+                return jsonify({"error": f"Unsupported format: {image.format}. Use JPEG, PNG, or WebP."}), 400
+    except (ValueError, binascii.Error):
+        return jsonify({"error": "The image could not be read."}), 400
+    except Exception as e:
+        return jsonify({"error": "Invalid image file."}), 400
+
+    # Mock mode - return predefined responses
+    if mode == "mock":
+        mock_response = generate_mock_response()
+        return jsonify(mock_response)
+
+    # Live mode - call Gemini Vision API
+    try:
+        result = identify_object_and_find_similar(image_data)
+        return jsonify(result)
+    except Exception as e:
+        error_message = str(e)
+        # Provide helpful feedback for common errors
+        if "GEMINI_API_KEY" in error_message or "not set" in error_message:
+            return jsonify({
+                "error": "API keys not configured. Set GEMINI_API_KEY and optionally GOOGLE_SEARCH_API_KEY environment variables.",
+                "mode": "mock_available"
+            }), 501
+        elif "not installed" in error_message:
+            return jsonify({
+                "error": error_message,
+                "mode": "mock_available"
+            }), 501
+        else:
+            return jsonify({"error": error_message}), 500
+
+
+def generate_mock_response():
+    """Generate realistic mock data for object identification"""
+    import random
+    
+    mock_objects = [
+        {
+            "name": "Golden Retriever",
+            "description": "A friendly and intelligent dog breed known for its golden-colored coat. Golden Retrievers are popular family pets, originally bred for retrieving waterfowl during hunting. They are loyal, gentle, and great with children.",
+            "tags": ["dog", "pet", "golden retriever", "animal", "mammal", "canine"]
+        },
+        {
+            "name": "Coffee Mug",
+            "description": "A ceramic drinking vessel typically used for hot beverages like coffee or tea. This style features a classic cylindrical shape with a handle for comfortable grip. Often used in homes and offices.",
+            "tags": ["mug", "coffee", "cup", "kitchen", "ceramic", "beverage"]
+        },
+        {
+            "name": "Laptop Computer",
+            "description": "A portable personal computer with an integrated screen and keyboard. Modern laptops are essential tools for work, education, and entertainment, offering computing power in a mobile form factor.",
+            "tags": ["laptop", "computer", "technology", "electronics", "device", "portable"]
+        },
+        {
+            "name": "Houseplant",
+            "description": "An indoor plant commonly kept for decorative purposes and air purification. Houseplants add natural beauty to living spaces and can improve indoor air quality. This appears to be a variety with broad green leaves.",
+            "tags": ["plant", "houseplant", "indoor", "green", "nature", "decoration"]
+        }
+    ]
+    
+    # Randomly select one object
+    obj = random.choice(mock_objects)
+    
+    # Generate mock similar images
+    similar_images = [
+        {
+            "url": f"https://picsum.photos/seed/{random.randint(1000, 9999)}/800/600",
+            "thumbnail": f"https://picsum.photos/seed/{random.randint(1000, 9999)}/200/150",
+            "title": f"{obj['name']} - Example {i+1}",
+            "source": random.choice(["example.com", "photos.com", "images.net", "pictures.org"])
+        }
+        for i in range(6)
+    ]
+    
+    return {
+        "object": obj,
+        "similar_images": similar_images
+    }
 
 
 @app.route("/api/auth/webauthn/<path:_unused>", methods=["GET", "POST", "OPTIONS"])

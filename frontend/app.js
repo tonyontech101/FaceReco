@@ -194,10 +194,16 @@ faceForm.addEventListener("submit", async (event) => {
   let signedIn = false;
   try {
     const image = captureFaceFrame(faceVideo, faceCanvas);
-    await loginWithFace(image);
+    const result = await loginWithFace(image);
     signedIn = true;
     showStatus("Face recognition sign-in successful.", "success");
     teardownCamera();
+    
+    // Store user info and redirect to dashboard
+    localStorage.setItem("user", JSON.stringify(result.user));
+    setTimeout(() => {
+      window.location.href = "/dashboard";
+    }, 500);
   } catch (error) {
     setScanningState(cameraStream ? "ready" : "error");
     showStatus(error.message || "Face recognition failed.", "error");
@@ -229,6 +235,12 @@ emailForm.addEventListener("submit", async (event) => {
     }
 
     showStatus("Email sign-in successful.", "success");
+    
+    // Store user info and redirect to dashboard
+    localStorage.setItem("user", JSON.stringify(result.user));
+    setTimeout(() => {
+      window.location.href = "/dashboard";
+    }, 500);
   } catch (error) {
     showStatus(error.message || "Email sign-in failed.", "error");
   }
