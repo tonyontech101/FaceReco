@@ -48,12 +48,25 @@ const imageGrid = document.getElementById("image-grid");
 const emptyState = document.getElementById("empty-state");
 const scanAnotherButton = document.getElementById("scan-another-button");
 
+// Modal Elements
+const noMatchModal = document.getElementById("no-match-modal");
+const modalPreviewImage = document.getElementById("modal-preview-image");
+const modalSimilarityText = document.getElementById("modal-similarity-text");
+const noMatchForm = document.getElementById("no-match-form");
+const inputObjectName = document.getElementById("input-object-name");
+const inputCategory = document.getElementById("input-category");
+const inputTags = document.getElementById("input-tags");
+const modalError = document.getElementById("modal-error");
+const modalCancelButton = document.getElementById("modal-cancel-button");
+const modalSaveButton = document.getElementById("modal-save-button");
+
 // State
 let cameraStream = null;
 let cameraStartPromise = null;
 let selectedFile = null;
 let selectedImageData = null;
 let captureTime = null;
+let pendingImageData = null; // Store image data while showing modal
 
 // ============ Utility Functions ============
 
@@ -335,29 +348,25 @@ async function identifyObject(imageData) {
   showStatus("Analyzing image...");
 
   try {
-    // Create abort controller for timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 120000); // 120 second timeout (allows for rate-limit retries)
-
-    const response = await fetch(`${API_BASE}/api/vision/identify`, {
+    // Use offline endpoint for local image recognition
+    const response = await fetch(`${API_BASE}/api/vision/identify-offline`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ 
-        image: imageData,
-        mode: "live"
-      }),
-      signal: controller.signal
+        image: imageData
+      })
     });
 
-    clearTimeout(timeoutId);
     const result = await response.json();
 
     if (!response.ok) {
-      // Handle specific error cases
-      if (response.status === 501 && result.mode === "mock_available") {
-        throw new Error(result.error + " Using mock mode instead.");
-      }
       throw new Error(result.error || "Unable to identify object.");
+    }
+
+    // Check if no match was found (similarity < 50%)
+    if (result.no_match) {
+      showNoMatchModal(imageData, result.best_similarity);
+      return;
     }
 
     // Check if object was successfully identified
@@ -367,9 +376,7 @@ async function identifyObject(imageData) {
 
     displayResults(result);
   } catch (error) {
-    if (error.name === "AbortError") {
-      showStatus("Request timed out. Please try again with a smaller image or check your connection.", "error");
-    } else if (error.message.includes("Failed to fetch") || error.message.includes("NetworkError")) {
+    if (error.message.includes("Failed to fetch") || error.message.includes("NetworkError")) {
       showStatus("Network error. Please check your connection and try again.", "error");
     } else {
       showStatus(error.message || "Identification failed. Please try again.", "error");
@@ -436,14 +443,21 @@ function displayResults(data) {
     featuredImages.forEach(img => {
       const card = document.createElement("div");
       card.className = "image-card";
+      
+      // Format similarity score as percentage
+      const similarityPercent = img.similarity ? Math.round(img.similarity * 100) : null;
+      const similarityBadge = similarityPercent ? 
+        `<span class="similarity-badge">${similarityPercent}% similar</span>` : '';
+      
       card.innerHTML = `
         <img src="${img.thumbnail || img.url}" 
              alt="${img.title || 'Similar image'}" 
              loading="lazy"
              onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22150%22%3E%3Crect fill=%22%23f8f5ef%22 width=%22200%22 height=%22150%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23746f67%22 font-family=%22sans-serif%22%3EImage unavailable%3C/text%3E%3C/svg%3E'">
+        ${similarityBadge}
         <div class="image-card-info">
           <p class="image-card-title">${img.title || 'Similar Image'}</p>
-          <p class="image-card-source">${img.source || 'Unknown source'}</p>
+          <p class="image-card-source">${img.source || 'Local Database'}</p>
         </div>
       `;
       imageGrid.appendChild(card);
@@ -485,6 +499,154 @@ function resetToActionPanel() {
     scanCanvas.hidden = true;
     startCamera();
   }
+}
+
+// ============ No Match Modal Functions ============
+
+function showNoMatchModal(imageData, bestSimilarity) {
+  pendingImageData = imageData;
+  
+  // Show preview image
+  modalPreviewImage.src = imageData;
+  
+  // Show similarity score
+  const similarityPercent = Math.round(bestSimilarity * 100);
+  modalSimilarityText.textContent = `Best match: ${similarityPercent}% similar (below 50% threshold)`;
+  
+  // Clear form
+  noMatchForm.reset();
+  modalError.hidden = true;
+  
+  // Show modal
+  noMatchModal.hidden = false;
+  
+  // Hide loading and clear status
+  hideLoading(actionPanel);
+  clearStatus();
+}
+
+function hideNoMatchModal() {
+  noMatchModal.hidden = true;
+  pendingImageData = null;
+  noMatchForm.reset();
+  modalError.hidden = true;
+}
+
+function showModalError(message) {
+  modalError.textContent = message;
+  modalError.hidden = false;
+}
+
+function hideModalError() {
+  modalError.hidden = true;
+}
+
+async function handleModalSave() {
+  // Validate inputs
+  const objectName = inputObjectName.value.trim();
+  const category = inputCategory.value.trim();
+  const tagsInput = inputTags.value.trim();
+  
+  hideModalError();
+  
+  if (!objectName) {
+    showModalError("Object name is required.");
+    inputObjectName.focus();
+    return;
+  }
+  
+  if (!category) {
+    showModalError("Category is required.");
+    inputCategory.focus();
+    return;
+  }
+  
+  if (!tagsInput) {
+    showModalError("Tags are required.");
+    inputTags.focus();
+    return;
+  }
+  
+  // Parse tags (comma-separated)
+  const tags = tagsInput.split(',').map(t => t.trim()).filter(t => t.length > 0);
+  
+  if (tags.length === 0) {
+    showModalError("Please provide at least one tag.");
+    inputTags.focus();
+    return;
+  }
+  
+  if (tags.length > 20) {
+    showModalError("Too many tags (maximum 20).");
+    inputTags.focus();
+    return;
+  }
+  
+  // Disable save button
+  modalSaveButton.disabled = true;
+  modalSaveButton.textContent = "Saving...";
+  
+  try {
+    // Call save-new-image endpoint
+    const response = await fetch(`${API_BASE}/api/vision/save-new-image`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        image: pendingImageData,
+        object_name: objectName,
+        category: category,
+        tags: tags
+      })
+    });
+    
+    const result = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(result.error || "Failed to save image.");
+    }
+    
+    // Success - hide modal and show success message
+    hideNoMatchModal();
+    showStatus(`Successfully added "${objectName}" to the database!`, "success");
+    
+    // Display the newly added image as a result
+    displayNewImageResult(objectName, category, tags, result.filename);
+    
+  } catch (error) {
+    showModalError(error.message || "Failed to save image. Please try again.");
+  } finally {
+    modalSaveButton.disabled = false;
+    modalSaveButton.textContent = "Save to Database";
+  }
+}
+
+function displayNewImageResult(objectName, category, tags, filename) {
+  // Create a result object for the newly added image
+  const result = {
+    object: {
+      name: objectName,
+      category: category,
+      tags: tags,
+      description: `A ${objectName} that you just added to the database.`
+    },
+    similar_images: [
+      {
+        filename: filename,
+        url: `/api/images/${filename}`,
+        thumbnail: `/api/images/${filename}`,
+        title: `${objectName} - ${filename}`,
+        source: "Local Database",
+        similarity: 1.0
+      }
+    ]
+  };
+  
+  displayResults(result);
+}
+
+function handleModalCancel() {
+  hideNoMatchModal();
+  resetToActionPanel();
 }
 
 // ============ Event Listeners ============
@@ -549,6 +711,26 @@ identifyButton.addEventListener("click", () => {
 
 // Results - Scan Another
 scanAnotherButton.addEventListener("click", resetToActionPanel);
+
+// Modal - Save
+modalSaveButton.addEventListener("click", handleModalSave);
+
+// Modal - Cancel
+modalCancelButton.addEventListener("click", handleModalCancel);
+
+// Modal - Close on overlay click
+noMatchModal.addEventListener("click", (e) => {
+  if (e.target === noMatchModal || e.target.classList.contains("modal-overlay")) {
+    handleModalCancel();
+  }
+});
+
+// Modal - Close on Escape key
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !noMatchModal.hidden) {
+    handleModalCancel();
+  }
+});
 
 // Cleanup on page unload
 window.addEventListener("beforeunload", stopCamera);

@@ -5,12 +5,13 @@ A premium responsive login prototype with two sign-in methods:
 - Camera-based face recognition using a live webcam capture
 - Email and password
 
-After successful login, users are redirected to an **AI-powered image recognition dashboard** that works like Google Lens:
+After successful login, users are redirected to an **AI-powered image recognition dashboard** that works **completely offline**:
 - **Upload** or **scan** images with your camera
-- **Identify objects** using Google Gemini Vision API
-- **Discover similar images** from web search results
+- **Identify objects** using local MobileNetV2 model (no internet required)
+- **View similar images** from your local database
+- **Add new objects** to expand the database over time
 
-The frontend uses HTML, CSS, and vanilla JavaScript. The backend uses Python Flask, `face_recognition`, Google Gemini API, and an Excel workbook as the prototype user database.
+The frontend uses HTML, CSS, and vanilla JavaScript. The backend uses Python Flask, `face_recognition`, TensorFlow/Keras with MobileNetV2, and an Excel workbook as the prototype database.
 
 ## Requirements
 
@@ -27,15 +28,24 @@ frontend/
   app.js
   signup.html
   signup.js
+  dashboard.html
+  dashboard.css
+  dashboard.js
 backend/
   app.py
   storage.py
+  offline_vision_service.py
+  image_storage.py
+  populate_database.py
+  init_database.py
   requirements.txt
 data/
   users.xlsx
+  image_database.xlsx
+  images/
 ```
 
-`data/users.xlsx` is created automatically when the backend starts.
+`data/users.xlsx` and `data/image_database.xlsx` are created automatically when the backend starts.
 
 ## Install And Run
 
@@ -44,7 +54,6 @@ cd backend
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-python app.py
 ```
 
 If `pip install -r requirements.txt` fails on Windows while building `dlib`, install the prebuilt wheel first and then install the face recognition package without forcing a rebuild:
@@ -52,6 +61,20 @@ If `pip install -r requirements.txt` fails on Windows while building `dlib`, ins
 ```powershell
 pip install dlib-bin
 pip install face_recognition --no-deps
+```
+
+**Initialize the image database:**
+
+```powershell
+python populate_database.py
+```
+
+This will scan all images in `data/images/` and generate feature embeddings using MobileNetV2. First run will download the model (~14MB).
+
+**Start the server:**
+
+```powershell
+python app.py
 ```
 
 Then open:
@@ -81,44 +104,78 @@ demo@example.com
 DemoPass123!
 ```
 
-## Image Recognition Dashboard
+## Offline Image Recognition Dashboard
 
 After successful login, you will be redirected to the dashboard where you can:
 
-### Mock Mode (Default)
-The dashboard works in **mock mode** by default, returning predefined sample data. No API keys required for testing.
+### How It Works
 
-### Live Mode (Production)
-To use real AI-powered object recognition:
+The dashboard uses **MobileNetV2** (pre-trained on ImageNet) to extract 1280-dimensional feature vectors from images. These features are compared against a local database using **cosine similarity** to find matching objects.
 
-1. **Get a Gemini API key** from [Google AI Studio](https://aistudio.google.com/apikey)
-2. **Set up Google Custom Search** (optional, for similar images):
-   - Create a [Custom Search Engine](https://programmablesearchengine.google.com/)
-   - Enable "Image search" and "Search the entire web"
-   - Get your [Search Engine ID](https://programmablesearchengine.google.com/)
-   - Get an API key from [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+**Flow:**
+1. **Upload or scan** an image
+2. **Feature extraction** - MobileNetV2 processes the image (~50-200ms)
+3. **Database search** - Compare against all stored images
+4. **Match found (≥50% similarity)**:
+   - Display object name, category, and tags
+   - Show top 3 most similar images with similarity scores
+5. **No match (<50% similarity)**:
+   - Modal appears asking you to label the object
+   - Provide object name, category, and tags
+   - Image is saved to database for future matches
 
-3. **Set environment variables**:
+### Adding Images to Database
 
-```powershell
-# Windows PowerShell
-$env:GEMINI_API_KEY="your-gemini-api-key"
-$env:GOOGLE_SEARCH_API_KEY="your-search-api-key"
-$env:SEARCH_ENGINE_ID="your-search-engine-id"
-```
-
-4. **Update dashboard.js** to use live mode:
-
-Change line in `frontend/dashboard.js`:
-```javascript
-mode: "live" // Changed from "mock"
-```
-
-5. **Install additional dependencies** (if not already installed):
+**Option 1: Place images in `data/images/` and run the population script**
 
 ```powershell
-pip install google-genai google-api-python-client
+cd backend
+python populate_database.py
 ```
+
+**Option 2: Upload through the dashboard**
+
+When you upload an image that doesn't match anything in the database, a modal will appear asking you to provide:
+- Object name (e.g., "Laptop")
+- Category (e.g., "Electronics")
+- Tags (e.g., "laptop, computer, device")
+
+The image will be automatically added to the database and available for future matches.
+
+### Database Management
+
+**View database statistics:**
+
+```powershell
+python -c "from image_storage import ExcelImageStore; import os; store = ExcelImageStore(os.path.join('..', 'data', 'image_database.xlsx')); print(store.get_statistics())"
+```
+
+**Reset database to original state:**
+
+```powershell
+python init_database.py
+```
+
+**Reset but keep user-uploaded images:**
+
+```powershell
+python init_database.py --keep-user-uploads
+```
+
+### Performance
+
+- **Model loading**: ~2-5 seconds (first request only, then cached)
+- **Feature extraction**: ~50-200ms per image
+- **Database search**: ~10-50ms (depends on database size)
+- **Total identification time**: Usually <500ms
+
+### Offline Operation
+
+The system works completely offline:
+- ✅ No API keys required
+- ✅ No internet connection needed (after initial model download)
+- ✅ All data stored locally in Excel and filesystem
+- ✅ Privacy-focused - images never leave your computer
 
 ## Face Recognition Notes
 

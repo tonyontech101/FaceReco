@@ -12,8 +12,28 @@ __pycache__/
 
 # Generated app data
 data/users.xlsx
+data/image_database.xlsx
+
+# Python build/test artifacts
+build/
+dist/
+*.egg-info/
+.coverage
+.coverage.*
+htmlcov/
+
+# Logs and runtime files
+*.log
+logs/
+
+# Optional frontend dependency dir
+node_modules/
+
+# IDE/editor files
+.idea/
 
 # OS/editor noise
 .DS_Store
 Thumbs.db
 .vscode/
+Desktop.ini

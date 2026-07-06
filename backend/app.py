@@ -1,12 +1,15 @@
 import base64
 import binascii
 import os
+import re
+import time
 from io import BytesIO
 
 from flask import Flask, jsonify, request, send_from_directory
 
 from storage import ExcelUserStore, hash_password, verify_password
-from vision_service import identify_object_and_find_similar
+from offline_vision_service import extract_image_features
+from image_storage import ExcelImageStore
 
 try:
     import face_recognition
@@ -22,12 +25,15 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(BASE_DIR)
 FRONTEND_DIR = os.path.join(ROOT_DIR, "frontend")
 DATA_PATH = os.path.join(ROOT_DIR, "data", "users.xlsx")
+IMAGES_DIR = os.path.join(ROOT_DIR, "data", "images")
+IMAGE_DB_PATH = os.path.join(ROOT_DIR, "data", "image_database.xlsx")
 
 FACE_MODEL = "face_recognition:dlib-128"
 FACE_DISTANCE_THRESHOLD = float(os.getenv("FACE_DISTANCE_THRESHOLD", "0.5"))
 
 app = Flask(__name__, static_folder=FRONTEND_DIR, static_url_path="")
 store = ExcelUserStore(DATA_PATH)
+image_store = ExcelImageStore(IMAGE_DB_PATH)
 
 
 def cors_response(response):
@@ -188,12 +194,68 @@ def face_login():
 
 @app.route("/api/vision/identify", methods=["POST", "OPTIONS"])
 def identify_object():
+    """
+    DEPRECATED: This endpoint is kept for backward compatibility only.
+    Please use /api/vision/identify-offline instead.
+    
+    Legacy behavior: Returns mock data in mock mode, redirects to offline in other modes.
+    """
     if request.method == "OPTIONS":
         return cors_response(jsonify({}))
 
     payload = request.get_json(silent=True) or {}
     image_data = payload.get("image") or ""
     mode = payload.get("mode", "mock")
+
+    # Validate image data
+    if not image_data.startswith("data:image/"):
+        return jsonify({"error": "A valid image is required."}), 400
+
+    try:
+        # Basic validation - decode to check format and size
+        _, encoded = image_data.split(",", 1)
+        image_bytes = base64.b64decode(encoded, validate=True)
+        
+        # Check file size (5MB limit)
+        size_mb = len(image_bytes) / (1024 * 1024)
+        if size_mb > 5:
+            return jsonify({"error": f"Image size ({size_mb:.1f}MB) exceeds 5MB limit."}), 400
+        
+        # Validate format
+        image = Image.open(BytesIO(image_bytes)) if Image else None
+        if image:
+            format_lower = image.format.lower() if image.format else ""
+            if format_lower not in ["jpeg", "png", "webp", "jpg"]:
+                return jsonify({"error": f"Unsupported format: {image.format}. Use JPEG, PNG, or WebP."}), 400
+    except (ValueError, binascii.Error):
+        return jsonify({"error": "The image could not be read."}), 400
+    except Exception as e:
+        return jsonify({"error": "Invalid image file."}), 400
+
+    # Mock mode - return predefined responses
+    if mode == "mock":
+        mock_response = generate_mock_response()
+        return jsonify(mock_response)
+
+    # Any other mode - inform user to use offline endpoint
+    return jsonify({
+        "error": "This endpoint is deprecated. The system now runs in fully offline mode.",
+        "message": "Please use /api/vision/identify-offline endpoint instead.",
+        "offline_endpoint": "/api/vision/identify-offline"
+    }), 410
+
+
+@app.route("/api/vision/identify-offline", methods=["POST", "OPTIONS"])
+def identify_object_offline():
+    """
+    Offline image identification using local MobileNetV2 model and database.
+    Matches uploaded image against local database using cosine similarity.
+    """
+    if request.method == "OPTIONS":
+        return cors_response(jsonify({}))
+
+    payload = request.get_json(silent=True) or {}
+    image_data = payload.get("image") or ""
 
     # Validate image data
     if not image_data.startswith("data:image/"):
@@ -220,30 +282,217 @@ def identify_object():
     except Exception as e:
         return jsonify({"error": "Invalid image file."}), 400
 
-    # Mock mode - return predefined responses
-    if mode == "mock":
-        mock_response = generate_mock_response()
-        return jsonify(mock_response)
-
-    # Live mode - call Gemini Vision API
+    # Extract features from uploaded image
     try:
-        result = identify_object_and_find_similar(image_data)
-        return jsonify(result)
+        print(f"[OfflineIdentify] Extracting features from uploaded image...")
+        start_time = time.time()
+        query_embedding = extract_image_features(image_data)
+        extract_time = time.time() - start_time
+        print(f"[OfflineIdentify] Feature extraction completed in {extract_time*1000:.0f}ms")
     except Exception as e:
-        error_message = str(e)
-        # Provide helpful feedback for common errors
-        if "GEMINI_API_KEY" in error_message or "not set" in error_message:
-            return jsonify({
-                "error": "API keys not configured. Set GEMINI_API_KEY and optionally GOOGLE_SEARCH_API_KEY environment variables.",
-                "mode": "mock_available"
-            }), 501
-        elif "not installed" in error_message:
-            return jsonify({
-                "error": error_message,
-                "mode": "mock_available"
-            }), 501
-        else:
-            return jsonify({"error": error_message}), 500
+        return jsonify({"error": f"Feature extraction failed: {str(e)}"}), 500
+
+    # Search database for similar images (threshold: 0.5, limit: 3)
+    try:
+        print(f"[OfflineIdentify] Searching database for similar images...")
+        search_start = time.time()
+        similar_images = image_store.search_similar(
+            query_embedding=query_embedding,
+            threshold=0.5,
+            limit=3
+        )
+        search_time = time.time() - search_start
+        print(f"[OfflineIdentify] Database search completed in {search_time*1000:.0f}ms")
+        print(f"[OfflineIdentify] Found {len(similar_images)} matches")
+        
+    except Exception as e:
+        return jsonify({"error": f"Database search failed: {str(e)}"}), 500
+
+    # Check if we have matches above threshold
+    if not similar_images or similar_images[0]["similarity"] < 0.5:
+        # No match found - return no_match flag
+        best_similarity = similar_images[0]["similarity"] if similar_images else 0.0
+        print(f"[OfflineIdentify] No match found (best similarity: {best_similarity:.2f})")
+        return jsonify({
+            "no_match": True,
+            "best_similarity": round(best_similarity, 2)
+        })
+
+    # Match found - get object info from best match
+    best_match = similar_images[0]
+    object_name = best_match["object_name"]
+    category = best_match["category"]
+    tags = best_match["tags"]
+    
+    print(f"[OfflineIdentify] Match found: {object_name} (similarity: {best_match['similarity']:.2f})")
+
+    # Format response
+    response = {
+        "object": {
+            "name": object_name,
+            "category": category,
+            "tags": tags,
+            "description": f"A {object_name} identified from your local database."
+        },
+        "similar_images": [
+            {
+                "image_id": img["image_id"],
+                "filename": img["filename"],
+                "url": f"/api/images/{img['filename']}",
+                "thumbnail": f"/api/images/{img['filename']}",
+                "title": f"{img['object_name']} - {img['filename']}",
+                "source": "Local Database",
+                "similarity": round(img["similarity"], 2)
+            }
+            for img in similar_images
+        ]
+    }
+
+    total_time = time.time() - start_time
+    print(f"[OfflineIdentify] Total processing time: {total_time*1000:.0f}ms")
+
+    return jsonify(response)
+
+
+@app.route("/api/images/<filename>", methods=["GET"])
+def serve_image(filename):
+    """
+    Serve images from data/images/ directory.
+    Includes security checks to prevent path traversal.
+    """
+    # Security: validate filename (no path traversal)
+    if ".." in filename or "/" in filename or "\\" in filename:
+        return jsonify({"error": "Invalid filename"}), 404
+    
+    # Check if file exists
+    file_path = os.path.join(IMAGES_DIR, filename)
+    if not os.path.exists(file_path):
+        return jsonify({"error": "Image not found"}), 404
+    
+    # Serve file with appropriate MIME type
+    return send_from_directory(IMAGES_DIR, filename)
+
+
+@app.route("/api/vision/save-new-image", methods=["POST", "OPTIONS"])
+def save_new_image():
+    """
+    Save a new image to the database when no match is found.
+    User provides object_name, category, and tags.
+    """
+    if request.method == "OPTIONS":
+        return cors_response(jsonify({}))
+
+    payload = request.get_json(silent=True) or {}
+    image_data = payload.get("image") or ""
+    object_name = (payload.get("object_name") or "").strip()
+    category = (payload.get("category") or "").strip()
+    tags_input = payload.get("tags") or []
+
+    # Validate inputs
+    if not image_data.startswith("data:image/"):
+        return jsonify({"error": "A valid image is required."}), 400
+    
+    if not object_name:
+        return jsonify({"error": "Object name is required."}), 400
+    
+    if not category:
+        return jsonify({"error": "Category is required."}), 400
+    
+    if not tags_input or not isinstance(tags_input, list):
+        return jsonify({"error": "Tags must be a non-empty array."}), 400
+    
+    # Validate lengths
+    if len(object_name) > 100:
+        return jsonify({"error": "Object name too long (max 100 characters)."}), 400
+    
+    if len(category) > 50:
+        return jsonify({"error": "Category too long (max 50 characters)."}), 400
+    
+    if len(tags_input) > 20:
+        return jsonify({"error": "Too many tags (max 20)."}), 400
+
+    # Validate image
+    try:
+        _, encoded = image_data.split(",", 1)
+        image_bytes = base64.b64decode(encoded, validate=True)
+        
+        # Check file size (5MB limit)
+        size_mb = len(image_bytes) / (1024 * 1024)
+        if size_mb > 5:
+            return jsonify({"error": f"Image size ({size_mb:.1f}MB) exceeds 5MB limit."}), 400
+        
+        # Validate format
+        image = Image.open(BytesIO(image_bytes))
+        format_lower = image.format.lower() if image.format else ""
+        if format_lower not in ["jpeg", "png", "webp", "jpg"]:
+            return jsonify({"error": f"Unsupported format: {image.format}. Use JPEG, PNG, or WebP."}), 400
+        
+    except (ValueError, binascii.Error):
+        return jsonify({"error": "The image could not be read."}), 400
+    except Exception as e:
+        return jsonify({"error": f"Invalid image file: {str(e)}"}), 400
+
+    # Generate unique filename
+    # Sanitize object name: lowercase, replace spaces with underscores, remove special chars
+    sanitized_name = re.sub(r'[^a-z0-9_]', '', object_name.lower().replace(' ', '_'))
+    timestamp = int(time.time())
+    filename = f"{sanitized_name}_{timestamp}.jpg"
+    
+    print(f"[SaveNewImage] Saving new image: {filename}")
+    print(f"[SaveNewImage] Object: {object_name}, Category: {category}")
+
+    # Save image file to disk
+    try:
+        file_path = os.path.join(IMAGES_DIR, filename)
+        
+        # Convert to RGB and save as JPEG
+        image = image.convert('RGB')
+        image.save(file_path, 'JPEG', quality=90)
+        
+        print(f"[SaveNewImage] Image saved to: {file_path}")
+        
+    except Exception as e:
+        return jsonify({"error": f"Failed to save image file: {str(e)}"}), 500
+
+    # Extract features
+    try:
+        print(f"[SaveNewImage] Extracting features...")
+        embedding = extract_image_features(image_data)
+        print(f"[SaveNewImage] Feature extraction completed")
+        
+    except Exception as e:
+        # Clean up saved file on error
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        return jsonify({"error": f"Feature extraction failed: {str(e)}"}), 500
+
+    # Save to database
+    try:
+        relative_path = f"images/{filename}"
+        image_record = image_store.add_image(
+            filename=filename,
+            object_name=object_name,
+            category=category,
+            tags=tags_input,
+            file_path=relative_path,
+            embedding=embedding
+        )
+        
+        print(f"[SaveNewImage] Image added to database with ID: {image_record['image_id']}")
+        
+    except Exception as e:
+        # Clean up saved file on error
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        return jsonify({"error": f"Database save failed: {str(e)}"}), 500
+
+    # Return success response
+    return jsonify({
+        "ok": True,
+        "image_id": image_record["image_id"],
+        "filename": filename,
+        "message": "Image successfully added to database."
+    })
 
 
 def generate_mock_response():
@@ -369,5 +618,36 @@ def compare_face_embeddings(saved_embedding, candidate_embedding):
 
 
 if __name__ == "__main__":
-    store.ensure_workbook()
+    try:
+        store.ensure_workbook()
+        image_store.ensure_workbook()
+    except PermissionError as e:
+        print("\n" + "=" * 60)
+        print("ERROR: Cannot access database file")
+        print("=" * 60)
+        print(f"\n{e}")
+        print("\nThis usually happens when the Excel file is open in another program.")
+        print("\nPlease:")
+        print("  1. Close Microsoft Excel (or any program viewing the .xlsx files)")
+        print("  2. Make sure these files are not open:")
+        print(f"     - {DATA_PATH}")
+        print(f"     - {IMAGE_DB_PATH}")
+        print("  3. Try running the server again")
+        print("\n" + "=" * 60)
+        import sys
+        sys.exit(1)
+    except Exception as e:
+        print(f"\nError initializing databases: {e}")
+        import sys
+        sys.exit(1)
+    
+    print("\n" + "=" * 60)
+    print("Server Starting")
+    print("=" * 60)
+    print(f"User database: {DATA_PATH}")
+    print(f"Image database: {IMAGE_DB_PATH}")
+    print("\nServer running at: http://127.0.0.1:5000")
+    print("Dashboard: http://127.0.0.1:5000/dashboard")
+    print("=" * 60 + "\n")
+    
     app.run(host="127.0.0.1", port=5000, debug=True)

@@ -221,6 +221,71 @@
       </section>
     </main>
 
+    <!-- No Match Modal -->
+    <div id="no-match-modal" class="modal" hidden>
+      <div class="modal-overlay"></div>
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title">Object Not Recognized</h2>
+          <p class="modal-subtitle">Help us learn by adding this object to the database</p>
+        </div>
+        
+        <div class="modal-body">
+          <!-- Image Preview -->
+          <div class="modal-image-preview">
+            <img id="modal-preview-image" alt="Captured image" />
+            <p class="modal-similarity-text" id="modal-similarity-text"></p>
+          </div>
+          
+          <!-- Input Form -->
+          <form id="no-match-form" class="modal-form">
+            <div class="form-group">
+              <label for="input-object-name" class="form-label">Object Name *</label>
+              <input 
+                type="text" 
+                id="input-object-name" 
+                class="form-input" 
+                placeholder="e.g., Laptop, Car, Apple"
+                maxlength="100"
+                required
+              />
+            </div>
+            
+            <div class="form-group">
+              <label for="input-category" class="form-label">Category *</label>
+              <input 
+                type="text" 
+                id="input-category" 
+                class="form-input" 
+                placeholder="e.g., Electronics, Vehicle, Food"
+                maxlength="50"
+                required
+              />
+            </div>
+            
+            <div class="form-group">
+              <label for="input-tags" class="form-label">Tags (comma-separated) *</label>
+              <input 
+                type="text" 
+                id="input-tags" 
+                class="form-input" 
+                placeholder="e.g., laptop, computer, device"
+                required
+              />
+              <p class="form-hint">Separate multiple tags with commas</p>
+            </div>
+            
+            <div class="modal-error" id="modal-error" hidden></div>
+          </form>
+        </div>
+        
+        <div class="modal-footer">
+          <button type="button" class="secondary-button" id="modal-cancel-button">Cancel</button>
+          <button type="button" class="primary-button" id="modal-save-button">Save to Database</button>
+        </div>
+      </div>
+    </div>
+
     <script src="dashboard.js"></script>
   </body>
 </html>
