@@ -42,17 +42,19 @@
     </svg>
 
     <main class="dashboard-shell">
-      <!-- Compact Sidebar -->
-      <aside class="dashboard-sidebar" aria-label="Dashboard navigation">
-        <div class="sidebar-content">
+      <!-- Top Navigation -->
+      <header class="dashboard-header">
+        <div class="header-left">
           <!-- Logo -->
-          <div class="sidebar-logo">
+          <div class="header-logo">
             <div class="brand-mark" aria-hidden="true">
               <span></span>
             </div>
-            <p class="sidebar-tagline">AI Vision</p>
+            <p class="header-tagline">AI Vision</p>
           </div>
+        </div>
 
+        <div class="header-center">
           <!-- Method Toggle -->
           <div class="method-switch" role="group" aria-label="Choose input method">
             <button class="method-tab is-active" id="scan-tab" type="button" data-target="scan">
@@ -64,19 +66,21 @@
               <span>Upload</span>
             </button>
           </div>
+        </div>
 
-          <!-- User Profile Card -->
-          <div class="user-profile-card">
-            <div class="user-avatar">
-              <svg class="icon" aria-hidden="true"><use href="#icon-user"></use></svg>
-            </div>
-            <div class="user-details">
+        <div class="header-right">
+          <!-- User Profile Header -->
+          <div class="user-profile-header">
+            <div class="user-details-header">
               <p class="user-name" id="user-name"></p>
               <button class="logout-link" id="logout-button" type="button">Sign out</button>
             </div>
+            <div class="user-avatar">
+              <svg class="icon" aria-hidden="true"><use href="#icon-user"></use></svg>
+            </div>
           </div>
         </div>
-      </aside>
+      </header>
 
       <!-- Main Content Area -->
       <section class="dashboard-main" aria-label="Image recognition interface">

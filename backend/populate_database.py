@@ -242,11 +242,11 @@ def populate_database(clear_existing: bool = False):
                 embedding=embedding
             )
             
-            print(f"  ✓ Successfully added to database")
+            print(f"  v Successfully added to database")
             processed += 1
             
         except Exception as e:
-            print(f"  ✗ Error processing {filename}: {e}")
+            print(f"  x Error processing {filename}: {e}")
             errors += 1
     
     # Print summary
@@ -267,7 +267,7 @@ def populate_database(clear_existing: bool = False):
     print(f"  Objects: {', '.join(stats['objects'])}")
     print(f"  Categories: {', '.join(stats['categories'])}")
     
-    print("\n✓ Database population complete!")
+    print("\nv Database population complete!")
 
 
 if __name__ == "__main__":

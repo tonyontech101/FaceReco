@@ -4,8 +4,8 @@
 
 /* Main Layout Structure */
 .dashboard-shell {
-  display: grid;
-  grid-template-columns: 280px 1fr;
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
   gap: 0;
   padding: 0;
@@ -13,49 +13,55 @@
 }
 
 /* ========================================
-   SIDEBAR STYLES
+   HEADER STYLES
    ======================================== */
 
-.dashboard-sidebar {
+.dashboard-header {
   background: var(--surface);
-  border-right: 1px solid var(--line);
-  padding: 32px 24px;
+  border-bottom: 1px solid var(--line);
+  padding: 16px 32px;
   display: flex;
-  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
 }
 
-.sidebar-content {
+.header-left, .header-center, .header-right {
   display: flex;
-  flex-direction: column;
-  height: 100%;
+  align-items: center;
+}
+
+.header-center {
+  flex: 1;
+  justify-content: center;
 }
 
 /* Logo */
-.sidebar-logo {
-  margin-bottom: 48px;
+.header-logo {
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
 
-.sidebar-logo .brand-mark {
-  width: 48px;
-  height: 48px;
+.header-logo .brand-mark {
+  width: 40px;
+  height: 40px;
   border: 1px solid var(--line);
   background: var(--surface-strong);
   display: grid;
   place-items: center;
-  margin-bottom: 12px;
 }
 
-.sidebar-logo .brand-mark span {
-  width: 18px;
-  height: 18px;
+.header-logo .brand-mark span {
+  width: 16px;
+  height: 16px;
   border: 2px solid var(--accent);
   display: block;
 }
 
-.sidebar-tagline {
+.header-tagline {
   margin: 0;
   color: var(--accent);
-  font-size: 0.76rem;
+  font-size: 1rem;
   font-weight: 760;
   letter-spacing: 0.5px;
   text-transform: uppercase;
@@ -63,16 +69,15 @@
 
 /* Method Switch */
 .method-switch {
-  display: grid;
+  display: flex;
   gap: 8px;
-  margin-bottom: auto;
 }
 
 .method-tab {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 14px 16px;
+  padding: 10px 20px;
   background: var(--bg);
   border: 1px solid var(--line);
   color: var(--muted);
@@ -80,12 +85,12 @@
   font-weight: 600;
   cursor: pointer;
   transition: all 180ms ease;
-  text-align: left;
+  border-radius: 4px;
 }
 
 .method-tab .icon {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   opacity: 0.6;
   transition: opacity 180ms ease;
 }
@@ -111,47 +116,41 @@
   color: var(--surface-strong);
 }
 
-/* User Profile Card */
-.user-profile-card {
+/* User Profile Header */
+.user-profile-header {
   display: flex;
-  gap: 12px;
-  padding: 16px;
-  background: #f8f5ef;
-  border: 1px solid var(--line);
-  margin-top: 24px;
+  align-items: center;
+  gap: 16px;
 }
 
 .user-avatar {
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   background: var(--surface);
   border: 1px solid var(--line);
   display: grid;
   place-items: center;
-  flex-shrink: 0;
+  border-radius: 50%;
 }
 
 .user-avatar .icon {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   color: var(--accent);
 }
 
-.user-details {
+.user-details-header {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  min-width: 0;
+  align-items: flex-end;
+  gap: 4px;
 }
 
-.user-details .user-name {
+.user-details-header .user-name {
   margin: 0;
   font-size: 0.92rem;
   font-weight: 700;
   color: var(--ink);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .logout-link {
@@ -162,7 +161,6 @@
   font-size: 0.82rem;
   font-weight: 600;
   cursor: pointer;
-  text-align: left;
   transition: color 150ms ease;
 }
 

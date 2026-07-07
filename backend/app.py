@@ -292,30 +292,35 @@ def identify_object_offline():
     except Exception as e:
         return jsonify({"error": f"Feature extraction failed: {str(e)}"}), 500
 
-    # Search database for similar images (threshold: 0.5, limit: 3)
+    # Search database for similar images (threshold: 0.4, limit: 10)
+    # Lower threshold accounts for JPEG compression and preprocessing variations
+    SIMILARITY_THRESHOLD = 0.4
+    DISPLAY_LIMIT = 3
+    
     try:
         print(f"[OfflineIdentify] Searching database for similar images...")
         search_start = time.time()
         similar_images = image_store.search_similar(
             query_embedding=query_embedding,
-            threshold=0.5,
-            limit=3
+            threshold=SIMILARITY_THRESHOLD,
+            limit=10  # Get more results initially
         )
         search_time = time.time() - search_start
         print(f"[OfflineIdentify] Database search completed in {search_time*1000:.0f}ms")
-        print(f"[OfflineIdentify] Found {len(similar_images)} matches")
+        print(f"[OfflineIdentify] Found {len(similar_images)} matches above threshold")
         
     except Exception as e:
         return jsonify({"error": f"Database search failed: {str(e)}"}), 500
 
     # Check if we have matches above threshold
-    if not similar_images or similar_images[0]["similarity"] < 0.5:
+    if not similar_images or similar_images[0]["similarity"] < SIMILARITY_THRESHOLD:
         # No match found - return no_match flag
         best_similarity = similar_images[0]["similarity"] if similar_images else 0.0
-        print(f"[OfflineIdentify] No match found (best similarity: {best_similarity:.2f})")
+        print(f"[OfflineIdentify] No match found (best similarity: {best_similarity:.3f}, threshold: {SIMILARITY_THRESHOLD})")
         return jsonify({
             "no_match": True,
-            "best_similarity": round(best_similarity, 2)
+            "best_similarity": round(best_similarity, 2),
+            "threshold": SIMILARITY_THRESHOLD
         })
 
     # Match found - get object info from best match
@@ -324,7 +329,35 @@ def identify_object_offline():
     category = best_match["category"]
     tags = best_match["tags"]
     
-    print(f"[OfflineIdentify] Match found: {object_name} (similarity: {best_match['similarity']:.2f})")
+    print(f"[OfflineIdentify] Match found: {object_name} (similarity: {best_match['similarity']:.3f})")
+    
+    # We use all similar images found above the threshold instead of filtering by exact object name.
+    # This allows other visually similar images (e.g., "Dog" images when a "Golden Retriever" is identified) to appear.
+    same_object_images = similar_images
+    
+    # If we don't have enough images, search with a lower threshold
+    if len(same_object_images) < DISPLAY_LIMIT:
+        print(f"[OfflineIdentify] Only found {len(same_object_images)} images, searching with lower threshold...")
+        
+        # Get more results with lower threshold (0.2 = 20%)
+        extended_search = image_store.search_similar(
+            query_embedding=query_embedding,
+            threshold=0.2,
+            limit=20
+        )
+        
+        same_object_images = extended_search
+        print(f"[OfflineIdentify] Extended search found {len(same_object_images)} visually similar images")
+    
+    # Limit to top 3 for display
+    display_images = same_object_images[:DISPLAY_LIMIT]
+    
+    if len(display_images) > 1:
+        print(f"[OfflineIdentify] Showing {len(display_images)} {object_name} images:")
+        for i, img in enumerate(display_images, 1):
+            print(f"  {i}. {img['filename']} ({img['similarity']:.3f})")
+    else:
+        print(f"[OfflineIdentify] Only 1 {object_name} image available in database")
 
     # Format response
     response = {
@@ -344,7 +377,7 @@ def identify_object_offline():
                 "source": "Local Database",
                 "similarity": round(img["similarity"], 2)
             }
-            for img in similar_images
+            for img in display_images
         ]
     }
 

@@ -112,14 +112,19 @@ After successful login, you will be redirected to the dashboard where you can:
 
 The dashboard uses **MobileNetV2** (pre-trained on ImageNet) to extract 1280-dimensional feature vectors from images. These features are compared against a local database using **cosine similarity** to find matching objects.
 
+**Similarity Threshold:** The system uses a 40% similarity threshold. This accounts for:
+- JPEG compression artifacts when images are uploaded
+- Slight variations in image preprocessing
+- Floating-point precision differences
+
 **Flow:**
 1. **Upload or scan** an image
 2. **Feature extraction** - MobileNetV2 processes the image (~50-200ms)
 3. **Database search** - Compare against all stored images
-4. **Match found (≥50% similarity)**:
+4. **Match found (≥40% similarity)**:
    - Display object name, category, and tags
    - Show top 3 most similar images with similarity scores
-5. **No match (<50% similarity)**:
+5. **No match (<40% similarity)**:
    - Modal appears asking you to label the object
    - Provide object name, category, and tags
    - Image is saved to database for future matches

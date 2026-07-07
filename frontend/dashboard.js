@@ -511,7 +511,7 @@ function showNoMatchModal(imageData, bestSimilarity) {
   
   // Show similarity score
   const similarityPercent = Math.round(bestSimilarity * 100);
-  modalSimilarityText.textContent = `Best match: ${similarityPercent}% similar (below 50% threshold)`;
+  modalSimilarityText.textContent = `Best match: ${similarityPercent}% similar (below 40% threshold)`;
   
   // Clear form
   noMatchForm.reset();
