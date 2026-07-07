@@ -47,6 +47,7 @@ const tagsContainer = document.getElementById("tags-container");
 const imageGrid = document.getElementById("image-grid");
 const emptyState = document.getElementById("empty-state");
 const scanAnotherButton = document.getElementById("scan-another-button");
+const viewDetailsButton = document.getElementById("view-details-button");
 
 // Modal Elements
 const noMatchModal = document.getElementById("no-match-modal");
@@ -67,6 +68,8 @@ let selectedFile = null;
 let selectedImageData = null;
 let captureTime = null;
 let pendingImageData = null; // Store image data while showing modal
+let currentImageId = null; // image_id of the currently displayed result, if any
+let currentCapturedImage = null; // data URL of the image the user captured/uploaded
 
 // ============ Utility Functions ============
 
@@ -391,13 +394,24 @@ async function identifyObject(imageData) {
 function displayResults(data) {
   const { object, similar_images } = data;
 
+  // Track image_id for "View Details" navigation, if the backend provided one
+  currentImageId = object.image_id || null;
+  if (viewDetailsButton) {
+    viewDetailsButton.hidden = !currentImageId;
+  }
+
   // Display hero image (captured/uploaded image)
   const heroImage = document.getElementById("hero-image");
   if (selectedImageData) {
-    heroImage.src = selectedImageData;
+    currentCapturedImage = selectedImageData;
   } else if (scanCanvas.width > 0) {
     // Use the frozen canvas frame
-    heroImage.src = scanCanvas.toDataURL("image/jpeg", 0.9);
+    currentCapturedImage = scanCanvas.toDataURL("image/jpeg", 0.9);
+  } else {
+    currentCapturedImage = null;
+  }
+  if (currentCapturedImage) {
+    heroImage.src = currentCapturedImage;
   }
   
   // Display capture timestamp
@@ -490,6 +504,10 @@ function resetToActionPanel() {
   resultsPanel.hidden = true;
   actionPanel.hidden = false;
   clearStatus();
+  currentImageId = null;
+  if (viewDetailsButton) {
+    viewDetailsButton.hidden = true;
+  }
   
   // Reset upload state
   resetUploadState();
@@ -610,7 +628,7 @@ async function handleModalSave() {
     showStatus(`Successfully added "${objectName}" to the database!`, "success");
     
     // Display the newly added image as a result
-    displayNewImageResult(objectName, category, tags, result.filename);
+    displayNewImageResult(objectName, category, tags, result.filename, result.image_id);
     
   } catch (error) {
     showModalError(error.message || "Failed to save image. Please try again.");
@@ -620,10 +638,11 @@ async function handleModalSave() {
   }
 }
 
-function displayNewImageResult(objectName, category, tags, filename) {
+function displayNewImageResult(objectName, category, tags, filename, imageId) {
   // Create a result object for the newly added image
   const result = {
     object: {
+      image_id: imageId,
       name: objectName,
       category: category,
       tags: tags,
@@ -711,6 +730,24 @@ identifyButton.addEventListener("click", () => {
 
 // Results - Scan Another
 scanAnotherButton.addEventListener("click", resetToActionPanel);
+
+// Results - View Details
+if (viewDetailsButton) {
+  viewDetailsButton.addEventListener("click", () => {
+    if (currentImageId) {
+      // Carry the image the user actually captured/uploaded over to the detail
+      // page so it shows their photo rather than the matched database image.
+      try {
+        if (currentCapturedImage) {
+          sessionStorage.setItem(`capturedImage:${currentImageId}`, currentCapturedImage);
+        }
+      } catch (e) {
+        // sessionStorage may fail (quota/private mode); detail page falls back to DB image
+      }
+      window.location.href = `/image/${encodeURIComponent(currentImageId)}`;
+    }
+  });
+}
 
 // Modal - Save
 modalSaveButton.addEventListener("click", handleModalSave);

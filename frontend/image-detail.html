@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Image Details</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="/dashboard.css">
+    <link rel="stylesheet" href="/image-detail.css">
+  </head>
+  <body>
+    <!-- SVG Icon System -->
+    <svg style="display: none;" aria-hidden="true">
+      <defs>
+        <symbol id="icon-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+          <circle cx="12" cy="7" r="4"></circle>
+        </symbol>
+        <symbol id="icon-arrow-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="19" y1="12" x2="5" y2="12"></line>
+          <polyline points="12 19 5 12 12 5"></polyline>
+        </symbol>
+        <symbol id="icon-edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+        </symbol>
+        <symbol id="icon-image" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+          <circle cx="8.5" cy="8.5" r="1.5"></circle>
+          <polyline points="21 15 16 10 5 21"></polyline>
+        </symbol>
+      </defs>
+    </svg>
+
+    <main class="dashboard-shell">
+      <!-- Top Navigation -->
+      <header class="dashboard-header">
+        <div class="header-left">
+          <a href="/dashboard" class="header-logo" style="text-decoration: none;">
+            <div class="brand-mark" aria-hidden="true">
+              <span></span>
+            </div>
+            <p class="header-tagline">AI Vision</p>
+          </a>
+        </div>
+
+        <div class="header-center">
+          <a href="/dashboard" class="secondary-action detail-back-link" id="back-to-dashboard-top">
+            <svg class="icon" aria-hidden="true"><use href="#icon-arrow-left"></use></svg>
+            <span>Back to Dashboard</span>
+          </a>
+        </div>
+
+        <div class="header-right">
+          <div class="user-profile-header">
+            <div class="user-details-header">
+              <p class="user-name" id="user-name"></p>
+              <button class="logout-link" id="logout-button" type="button">Sign out</button>
+            </div>
+            <div class="user-avatar">
+              <svg class="icon" aria-hidden="true"><use href="#icon-user"></use></svg>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- Main Content Area -->
+      <section class="dashboard-main" aria-label="Image detail">
+        <div class="content-wrapper">
+          <div class="status-banner" id="status-banner" role="status" aria-live="polite"></div>
+
+          <!-- Loading state -->
+          <div class="detail-loading" id="detail-loading">
+            <p>Loading image details...</p>
+          </div>
+
+          <!-- Not found state -->
+          <div class="detail-not-found" id="detail-not-found" hidden>
+            <div class="empty-placeholder">
+              <svg class="empty-icon" aria-hidden="true"><use href="#icon-image"></use></svg>
+              <p class="empty-text">Image not found.</p>
+              <p class="empty-hint">The image you're looking for doesn't exist in the database.</p>
+              <a href="/dashboard" class="primary-action" style="display:inline-block; margin-top: 16px; text-decoration:none;">Back to Dashboard</a>
+            </div>
+          </div>
+
+          <!-- Detail content -->
+          <div class="detail-layout" id="detail-layout" hidden>
+            <!-- Left Column: Hero Image -->
+            <div class="detail-hero-column">
+              <div class="detail-hero-card">
+                <img id="detail-hero-image" class="detail-hero-image" alt="">
+              </div>
+            </div>
+
+            <!-- Right Column: Metadata -->
+            <div class="detail-info-column">
+              <div class="detail-info-header">
+                <span class="category-badge" id="detail-category-badge"></span>
+                <h1 id="detail-object-name" class="detail-object-name"></h1>
+              </div>
+
+              <div class="detail-field">
+                <div class="detail-field-label-row">
+                  <label class="detail-field-label" for="detail-description-input">Description</label>
+                </div>
+                <p class="detail-field-static" id="detail-description-static"></p>
+                <textarea class="detail-field-input" id="detail-description-input" rows="4" hidden></textarea>
+              </div>
+
+              <div class="detail-field">
+                <div class="detail-field-label-row">
+                  <label class="detail-field-label" for="detail-category-input">Category</label>
+                </div>
+                <p class="detail-field-static" id="detail-category-static"></p>
+                <input class="detail-field-input" id="detail-category-input" type="text" maxlength="50" hidden>
+              </div>
+
+              <div class="detail-field">
+                <div class="detail-field-label-row">
+                  <label class="detail-field-label" for="detail-color-input">Color</label>
+                </div>
+                <div class="detail-color-static" id="detail-color-static">
+                  <span class="color-swatch" id="detail-color-swatch" aria-hidden="true"></span>
+                  <span class="color-name" id="detail-color-name"></span>
+                </div>
+                <input class="detail-field-input" id="detail-color-input" type="text" maxlength="50" placeholder="e.g. Golden brown #b5793a" hidden>
+              </div>
+
+              <div class="detail-field">
+                <div class="detail-field-label-row">
+                  <label class="detail-field-label" for="detail-tags-input">Tags</label>
+                </div>
+                <div class="tags-container" id="detail-tags-static"></div>
+                <input class="detail-field-input" id="detail-tags-input" type="text" placeholder="comma, separated, tags" hidden>
+                <p class="form-hint" id="detail-tags-hint" hidden>Separate tags with commas.</p>
+              </div>
+
+              <div class="detail-metadata-panel">
+                <div class="detail-metadata-row">
+                  <span class="detail-metadata-key">Filename</span>
+                  <span class="detail-metadata-value" id="detail-filename"></span>
+                </div>
+                <div class="detail-metadata-row">
+                  <span class="detail-metadata-key">Uploaded</span>
+                  <span class="detail-metadata-value" id="detail-created-at"></span>
+                </div>
+              </div>
+
+              <div class="detail-actions">
+                <button class="secondary-action" id="edit-toggle-button" type="button">
+                  <svg class="icon" aria-hidden="true"><use href="#icon-edit"></use></svg>
+                  <span>Edit</span>
+                </button>
+                <button class="primary-action" id="save-button" type="button" hidden>Save Changes</button>
+                <button class="secondary-action" id="cancel-edit-button" type="button" hidden>Cancel</button>
+                <a href="/dashboard" class="secondary-action detail-back-link">Back to Dashboard</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="/image-detail.js"></script>
+  </body>
+</html>

@@ -39,7 +39,7 @@ image_store = ExcelImageStore(IMAGE_DB_PATH)
 def cors_response(response):
     response.headers["Access-Control-Allow-Origin"] = "*"
     response.headers["Access-Control-Allow-Headers"] = "Content-Type"
-    response.headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS"
+    response.headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,OPTIONS"
     return response
 
 
@@ -61,6 +61,11 @@ def signup_page():
 @app.route("/dashboard")
 def dashboard_page():
     return send_from_directory(FRONTEND_DIR, "dashboard.html")
+
+
+@app.route("/image/<image_id>")
+def image_detail_page(image_id):
+    return send_from_directory(FRONTEND_DIR, "image-detail.html")
 
 
 @app.route("/<path:path>")
@@ -308,6 +313,18 @@ def identify_object_offline():
         search_time = time.time() - search_start
         print(f"[OfflineIdentify] Database search completed in {search_time*1000:.0f}ms")
         print(f"[OfflineIdentify] Found {len(similar_images)} matches above threshold")
+
+        # Skip records whose image file is missing on disk. These are stale/junk
+        # entries that can never be displayed and would otherwise pollute results
+        # (e.g. matching a watch to a "toothbrush" record with no image file).
+        before = len(similar_images)
+        similar_images = [
+            img for img in similar_images
+            if os.path.exists(os.path.join(IMAGES_DIR, img.get("filename", "")))
+        ]
+        skipped = before - len(similar_images)
+        if skipped:
+            print(f"[OfflineIdentify] Skipped {skipped} match(es) with missing image files")
         
     except Exception as e:
         return jsonify({"error": f"Database search failed: {str(e)}"}), 500
@@ -345,7 +362,13 @@ def identify_object_offline():
             threshold=0.2,
             limit=20
         )
-        
+
+        # Same missing-file filter as above
+        extended_search = [
+            img for img in extended_search
+            if os.path.exists(os.path.join(IMAGES_DIR, img.get("filename", "")))
+        ]
+
         same_object_images = extended_search
         print(f"[OfflineIdentify] Extended search found {len(same_object_images)} visually similar images")
     
@@ -362,10 +385,12 @@ def identify_object_offline():
     # Format response
     response = {
         "object": {
+            "image_id": best_match.get("image_id"),
             "name": object_name,
             "category": category,
             "tags": tags,
-            "description": f"A {object_name} identified from your local database."
+            "color": best_match.get("color") or "",
+            "description": best_match.get("description") or f"A {object_name} identified from your local database."
         },
         "similar_images": [
             {
@@ -404,6 +429,87 @@ def serve_image(filename):
     
     # Serve file with appropriate MIME type
     return send_from_directory(IMAGES_DIR, filename)
+
+
+def public_image(image):
+    """Format an image record for API responses, excluding the embedding."""
+    return {
+        "image_id": image.get("image_id"),
+        "filename": image.get("filename"),
+        "object_name": image.get("object_name"),
+        "category": image.get("category"),
+        "tags": image.get("tags") or [],
+        "description": image.get("description") or "",
+        "color": image.get("color") or "",
+        "file_path": image.get("file_path"),
+        "created_at": image.get("created_at"),
+        "image_url": f"/api/images/{image.get('filename')}",
+    }
+
+
+@app.route("/api/images/detail/<image_id>", methods=["GET", "OPTIONS"])
+def get_image_detail(image_id):
+    if request.method == "OPTIONS":
+        return cors_response(jsonify({}))
+
+    image = image_store.get_image_by_id(image_id)
+    if not image:
+        return jsonify({"error": "Image not found."}), 404
+
+    return jsonify({"image": public_image(image)})
+
+
+@app.route("/api/images/detail/<image_id>", methods=["PUT", "OPTIONS"])
+def update_image_detail(image_id):
+    if request.method == "OPTIONS":
+        return cors_response(jsonify({}))
+
+    payload = request.get_json(silent=True) or {}
+
+    description = payload.get("description")
+    category = payload.get("category")
+    tags = payload.get("tags")
+    color = payload.get("color")
+
+    if description is not None:
+        description = str(description).strip()
+        if len(description) > 1000:
+            return jsonify({"error": "Description too long (max 1000 characters)."}), 400
+
+    if color is not None:
+        color = str(color).strip()
+        if len(color) > 50:
+            return jsonify({"error": "Color too long (max 50 characters)."}), 400
+
+    if category is not None:
+        category = str(category).strip()
+        if not category:
+            return jsonify({"error": "Category cannot be empty."}), 400
+        if len(category) > 50:
+            return jsonify({"error": "Category too long (max 50 characters)."}), 400
+
+    if tags is not None:
+        if not isinstance(tags, list):
+            return jsonify({"error": "Tags must be an array."}), 400
+        tags = [str(tag).strip() for tag in tags if str(tag).strip()]
+        if len(tags) > 20:
+            return jsonify({"error": "Too many tags (max 20)."}), 400
+
+    if description is None and category is None and tags is None and color is None:
+        return jsonify({"error": "Provide at least one of description, tags, category, or color."}), 400
+
+    updated = image_store.update_image(
+        image_id=image_id,
+        description=description,
+        tags=tags,
+        category=category,
+        color=color
+    )
+
+    if updated is None:
+        return jsonify({"error": "Image not found."}), 404
+
+    return jsonify({"ok": True, "image": public_image(updated)})
 
 
 @app.route("/api/vision/save-new-image", methods=["POST", "OPTIONS"])

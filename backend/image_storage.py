@@ -21,10 +21,39 @@ HEADERS = [
     "object_name",
     "category",
     "tags",
+    "description",
+    "color",
     "file_path",
     "embedding",
     "created_at",
 ]
+
+
+def generate_description(object_name: str, category: str, tags: Optional[List[str]] = None) -> str:
+    """
+    Generate a human-readable description from object metadata.
+
+    Args:
+        object_name: Human-readable object name (e.g., "Golden Retriever")
+        category: Broad category (e.g., "Animal")
+        tags: Optional list of tags
+
+    Returns:
+        Auto-generated description string
+    """
+    object_name = (object_name or "").strip() or "Unknown object"
+    category = (category or "").strip()
+    tags = [tag for tag in (tags or []) if tag]
+
+    if category:
+        description = f"A {object_name}, classified as a {category}."
+    else:
+        description = f"A {object_name}."
+
+    if tags:
+        description += f" Commonly associated with: {', '.join(tags)}."
+
+    return description
 
 
 class ExcelImageStore:
@@ -106,7 +135,9 @@ class ExcelImageStore:
         category: str,
         tags: List[str],
         file_path: str,
-        embedding: np.ndarray
+        embedding: np.ndarray,
+        description: Optional[str] = None,
+        color: Optional[str] = None
     ) -> Dict:
         """
         Add new image to database.
@@ -118,6 +149,9 @@ class ExcelImageStore:
             tags: List of tags for categorization
             file_path: Relative path to image file
             embedding: 1280-dimensional feature vector
+            description: Optional description; auto-generated from object_name/
+                category/tags when not supplied
+            color: Optional dominant color label/hex for the image
             
         Returns:
             Dict with image metadata including generated image_id
@@ -126,6 +160,9 @@ class ExcelImageStore:
         workbook = load_workbook(self.path)
         sheet = workbook['images']
         headers = self._headers(sheet)
+
+        if not description:
+            description = generate_description(object_name, category, tags)
         
         # Create image record
         image_id = str(uuid.uuid4())
@@ -135,6 +172,8 @@ class ExcelImageStore:
             "object_name": object_name,
             "category": category,
             "tags": json.dumps(tags),
+            "description": description,
+            "color": color or "",
             "file_path": file_path,
             "embedding": json.dumps(embedding.tolist()),
             "created_at": datetime.now(timezone.utc).isoformat(),
@@ -145,6 +184,83 @@ class ExcelImageStore:
         workbook.save(self.path)
         
         return image_data
+
+    def update_image(
+        self,
+        image_id: str,
+        description: Optional[str] = None,
+        tags: Optional[List[str]] = None,
+        category: Optional[str] = None,
+        color: Optional[str] = None
+    ) -> Optional[Dict]:
+        """
+        Update description, tags, category, and/or color for an existing image.
+
+        Only the fields explicitly passed (not None) are modified. All other
+        cells in the row — including embedding, image_id, filename, file_path,
+        and created_at — are left untouched to avoid corrupting stored data.
+
+        Args:
+            image_id: Image UUID to update
+            description: New description, if provided
+            tags: New list of tags, if provided
+            category: New category, if provided
+            color: New color label/hex, if provided
+
+        Returns:
+            Dict with the updated image record (without embedding), or None
+            if no image with that image_id exists.
+        """
+        self.ensure_workbook()
+        workbook = load_workbook(self.path)
+        sheet = workbook['images']
+        headers = self._headers(sheet)
+
+        if "image_id" not in headers:
+            return None
+        id_col = headers.index("image_id") + 1  # openpyxl columns are 1-indexed
+
+        target_row = None
+        for row in sheet.iter_rows(min_row=2):
+            cell = row[id_col - 1]
+            if cell.value == image_id:
+                target_row = row[0].row
+                break
+
+        if target_row is None:
+            return None
+
+        updates = {}
+        if description is not None:
+            updates["description"] = description
+        if tags is not None:
+            updates["tags"] = json.dumps(tags)
+        if category is not None:
+            updates["category"] = category
+        if color is not None:
+            updates["color"] = color
+
+        for field, value in updates.items():
+            if field in headers:
+                col = headers.index(field) + 1
+                sheet.cell(row=target_row, column=col, value=value)
+
+        workbook.save(self.path)
+
+        # Read back the full updated record (without embedding) for the response
+        updated_row = [sheet.cell(row=target_row, column=c + 1).value for c in range(len(headers))]
+        record = dict(zip(headers, updated_row))
+        record = {key: ("" if value is None else value) for key, value in record.items()}
+        record.pop("embedding", None)
+        if record.get("tags"):
+            try:
+                record["tags"] = json.loads(record["tags"])
+            except json.JSONDecodeError:
+                record["tags"] = []
+        else:
+            record["tags"] = []
+
+        return record
     
     def get_all_images(self) -> List[Dict]:
         """
@@ -193,7 +309,7 @@ class ExcelImageStore:
     
     def get_image_by_id(self, image_id: str) -> Optional[Dict]:
         """
-        Retrieve single image by ID.
+        Retrieve single image by ID (without requiring valid embedding).
         
         Args:
             image_id: Image UUID
@@ -201,10 +317,41 @@ class ExcelImageStore:
         Returns:
             Image record or None if not found
         """
-        images = self.get_all_images()
-        for image in images:
-            if image.get("image_id") == image_id:
+        self.ensure_workbook()
+        workbook = load_workbook(self.path)
+        sheet = workbook['images']
+        headers = self._headers(sheet)
+
+        if "image_id" not in headers:
+            return None
+
+        id_col_idx = headers.index("image_id")
+
+        for row in sheet.iter_rows(min_row=2, values_only=True):
+            if row[id_col_idx] == image_id:
+                image = dict(zip(headers, row))
+                image = {key: ("" if value is None else value) for key, value in image.items()}
+
+                # Parse tags
+                if image.get("tags"):
+                    try:
+                        image["tags"] = json.loads(image["tags"])
+                    except json.JSONDecodeError:
+                        image["tags"] = []
+                else:
+                    image["tags"] = []
+
+                # Parse embedding if present (but don't fail if it's missing/invalid)
+                if image.get("embedding"):
+                    try:
+                        image["embedding"] = np.array(json.loads(image["embedding"]), dtype=np.float32)
+                    except (json.JSONDecodeError, ValueError):
+                        image["embedding"] = None
+                else:
+                    image["embedding"] = None
+
                 return image
+
         return None
     
     def search_similar(

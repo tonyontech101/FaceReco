@@ -14,7 +14,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(SCRIPT_DIR)
 sys.path.insert(0, SCRIPT_DIR)
 
-from image_storage import ExcelImageStore
+from image_storage import ExcelImageStore, generate_description
 from offline_vision_service import extract_image_features_from_file
 
 
@@ -225,6 +225,10 @@ def populate_database(clear_existing: bool = False):
             # Generate tags
             tags = generate_tags(object_name, category)
             print(f"  - Tags: {', '.join(tags)}")
+
+            # Generate description
+            description = generate_description(object_name, category, tags)
+            print(f"  - Description: {description}")
             
             # Extract features
             print(f"  - Extracting features...")
@@ -239,7 +243,8 @@ def populate_database(clear_existing: bool = False):
                 category=category,
                 tags=tags,
                 file_path=relative_path,
-                embedding=embedding
+                embedding=embedding,
+                description=description
             )
             
             print(f"  v Successfully added to database")
