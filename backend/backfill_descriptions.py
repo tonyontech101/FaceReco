@@ -134,12 +134,16 @@ def canonical_object(object_name, filename):
         return "banana"
     if "watch" in text:
         return "watch"
-    if "toothbrush" in text:
-        return "toothbrush"
+    if "wallet" in text:
+        return "wallet"
     if "dog" in text or "golden" in text or "retriever" in text or "puppy" in text:
         return "dog"
     if "ballpen" in text or "balpen" in text or "pen" in text:
         return "ballpen"
+    # Person names (single-name portrait files)
+    person_names = {"chris", "daniel", "james", "robin"}
+    if name in person_names or os.path.splitext(fname)[0] in person_names:
+        return "person"
     return "generic"
 
 
@@ -184,15 +188,26 @@ def build_description(canonical, color_name, display_name):
             f"being affordable, portable, and reliable for daily note-taking. In the "
             f"local database it is categorized under Stationery."
         )
-    if canonical == "toothbrush":
+    if canonical == "wallet":
         return (
-            f"This image shows a toothbrush, an essential tool for daily oral hygiene. "
-            f"It features a largely {cl} handle designed for a comfortable, secure "
-            f"grip. The bristled head is used to clean the teeth and gums, helping to "
-            f"remove plaque and prevent decay. Most people are advised to replace their "
-            f"toothbrush every few months for the best results. It is stored under the "
-            f"Other category in the local database."
+            f"This image shows a wallet, a compact personal accessory used to carry "
+            f"cash, cards, and identification. Its exterior features a predominantly "
+            f"{cl} finish that reflects a classic, refined style. Wallets are "
+            f"crafted from leather, synthetic, or fabric materials and come in bifold, "
+            f"trifold, and cardholder designs. This particular piece combines "
+            f"practicality with everyday elegance. It is filed under the Accessory "
+            f"category in the local database."
         )
+    if canonical == "person":
+        return (
+            f"This image is a portrait photograph of a person named "
+            f"{display_name}. The image is dominated by {cl} tones that set the "
+            f"mood of the shot. Portrait photos like this capture the likeness, "
+            f"expression, and personality of the subject. The composition focuses "
+            f"on the upper body and face, allowing clear visual identification. "
+            f"It is stored under the Person category in the local database."
+        )
+
     return (
         f"This image shows {display_name.lower()}, an object stored in the local image "
         f"database. Its appearance is dominated by a {cl} tone that helps distinguish "

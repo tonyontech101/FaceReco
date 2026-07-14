@@ -3,6 +3,7 @@ import binascii
 import os
 import re
 import time
+import json
 from io import BytesIO
 
 from flask import Flask, jsonify, request, send_from_directory
@@ -15,10 +16,12 @@ try:
     import face_recognition
     import numpy as np
     from PIL import Image
+    from deepface import DeepFace
 except ImportError:
     face_recognition = None
     np = None
     Image = None
+    DeepFace = None
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -34,6 +37,29 @@ FACE_DISTANCE_THRESHOLD = float(os.getenv("FACE_DISTANCE_THRESHOLD", "0.5"))
 app = Flask(__name__, static_folder=FRONTEND_DIR, static_url_path="")
 store = ExcelUserStore(DATA_PATH)
 image_store = ExcelImageStore(IMAGE_DB_PATH)
+
+# Loaded Face Profiles (melvin, pocs, nagao)
+FACE_PROFILES_PATH = os.path.join(BASE_DIR, "face_profiles.json")
+_cached_face_profiles = None
+
+def load_face_profiles():
+    global _cached_face_profiles
+    if _cached_face_profiles is not None:
+        return _cached_face_profiles
+    
+    if not os.path.exists(FACE_PROFILES_PATH):
+        print(f"[FaceIdentify] Warning: No face profiles found at {FACE_PROFILES_PATH}")
+        return []
+    
+    try:
+        with open(FACE_PROFILES_PATH, "r") as f:
+            data = json.load(f)
+            _cached_face_profiles = data.get("profiles", [])
+            print(f"[FaceIdentify] Loaded {len(_cached_face_profiles)} face profiles.")
+            return _cached_face_profiles
+    except Exception as e:
+        print(f"[FaceIdentify] Error loading face profiles: {e}")
+        return []
 
 
 def cors_response(response):
@@ -286,6 +312,144 @@ def identify_object_offline():
         return jsonify({"error": "The image could not be read."}), 400
     except Exception as e:
         return jsonify({"error": "Invalid image file."}), 400
+
+    # Face Recognition & Gender Analysis Check
+    if face_recognition is not None and DeepFace is not None:
+        try:
+            print("[OfflineIdentify] Scanning image for faces...")
+            image_array = decode_image_data_url(image_data)
+            
+            # Use multi-stage detection models for robust face finding
+            face_locations = face_recognition.face_locations(image_array)
+            if not face_locations:
+                face_locations = face_recognition.face_locations(image_array, number_of_times_to_upsample=2)
+            if not face_locations:
+                face_locations = face_recognition.face_locations(image_array, model="cnn")
+                
+            if face_locations:
+                print(f"[OfflineIdentify] Detected {len(face_locations)} face(s). Running face matching & gender analysis...")
+                
+                # Run gender analysis with DeepFace
+                gender = "Unknown"
+                try:
+                    # Convert to PIL Image and save to a temporary buffer if needed,
+                    # but DeepFace can analyze numpy array directly.
+                    # enforce_detection=False prevents it failing if its internal detector misses it.
+                    analysis = DeepFace.analyze(image_array, actions=['gender'], enforce_detection=False)
+                    if isinstance(analysis, list):
+                        analysis = analysis[0]
+                    # Get dominant gender
+                    dominant_gender = analysis.get("dominant_gender", "Unknown")
+                    if dominant_gender.lower() == "man":
+                        gender = "Male"
+                    elif dominant_gender.lower() == "woman":
+                        gender = "Female"
+                    else:
+                        gender = dominant_gender.capitalize()
+                except Exception as ex:
+                    print(f"[OfflineIdentify] DeepFace gender analysis failed: {ex}")
+                
+                # Check for profile matches using face encodings (dlib 128D)
+                face_encodings = face_recognition.face_encodings(image_array, known_face_locations=[face_locations[0]], num_jitters=1)
+                
+                matched_profile = None
+                best_dist = float('inf')
+                
+                if face_encodings:
+                    query_face_enc = np.array(face_encodings[0])
+                    profiles = load_face_profiles()
+                    
+                    # Match threshold is 0.5 (smaller = stricter)
+                    MATCH_THRESHOLD = 0.5
+                    
+                    for p in profiles:
+                        # Profile can have "embedding" (single) or "embeddings" (multiple)
+                        embeds = p.get("embeddings", [])
+                        if "embedding" in p:
+                            embeds = [p["embedding"]]
+                            
+                        for emb_list in embeds:
+                            emb = np.array(emb_list)
+                            dist = float(np.linalg.norm(emb - query_face_enc))
+                            if dist < MATCH_THRESHOLD and dist < best_dist:
+                                best_dist = dist
+                                matched_profile = p
+                
+                # Query all Person category images to show as similar images
+                person_images = []
+                try:
+                    all_db_images = image_store.get_all_images()
+                    person_images = [img for img in all_db_images if img.get("category", "").lower() == "person"]
+                except Exception as e:
+                    print(f"[OfflineIdentify] Failed to get similar person images from DB: {e}")
+                
+                # Handle matched profile
+                if matched_profile:
+                    name = matched_profile["name"]
+                    tags = list(matched_profile["tags"])
+                    if gender != "Unknown":
+                        tags.insert(0, gender) # Add gender to tags list
+                    
+                    # Exclude the matched profile's own filenames so they never appear in similar images
+                    exclude_files = set(matched_profile.get("filenames", []))
+                    similar_display = [
+                        {
+                            "image_id": img["image_id"],
+                            "filename": img["filename"],
+                            "url": f"/api/images/{img['filename']}",
+                            "thumbnail": f"/api/images/{img['filename']}",
+                            "title": f"{img['object_name']} - {img['filename']}",
+                            "source": "Local Database",
+                            "similarity": 0.9 # Hardcoded similarity for display
+                        }
+                        for img in person_images if img.get("filename") not in exclude_files
+                    ][:3]
+                    
+                    print(f"[OfflineIdentify] Face matched profile: {name} (distance: {best_dist:.3f}, gender: {gender})")
+                    return jsonify({
+                        "object": {
+                            "image_id": "face_" + name.lower(),
+                            "name": name,
+                            "category": "Person",
+                            "tags": tags,
+                            "color": "",
+                            "description": matched_profile.get("description", "")
+                        },
+                        "similar_images": similar_display
+                    })
+                
+                # Generic face/person response if face detected but no profile matches
+                tags = ["person"]
+                if gender != "Unknown":
+                    tags.insert(0, gender)
+                
+                similar_display = [
+                    {
+                        "image_id": img["image_id"],
+                        "filename": img["filename"],
+                        "url": f"/api/images/{img['filename']}",
+                        "thumbnail": f"/api/images/{img['filename']}",
+                        "title": f"{img['object_name']} - {img['filename']}",
+                        "source": "Local Database",
+                        "similarity": 0.8
+                    }
+                    for img in person_images
+                ][:3]
+                
+                print(f"[OfflineIdentify] Face detected but no profile matched (gender: {gender})")
+                return jsonify({
+                    "object": {
+                        "image_id": "face_unknown",
+                        "name": "Unknown Person",
+                        "category": "Person",
+                        "tags": tags,
+                        "color": "",
+                        "description": f"A detected face showing as a {gender.lower() if gender != 'Unknown' else 'person'}. Visual features extracted but no exact match found in our face database."
+                    },
+                    "similar_images": similar_display
+                })
+        except Exception as e:
+            print(f"[OfflineIdentify] Error during face/gender recognition phase: {e}. Falling back to object flow.")
 
     # Extract features from uploaded image
     try:

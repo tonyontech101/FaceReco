@@ -23,6 +23,10 @@ IMAGES_DIR = os.path.join(ROOT_DIR, "data", "images")
 DATABASE_PATH = os.path.join(ROOT_DIR, "data", "image_database.xlsx")
 
 
+# Known person filenames (single-name files that are portraits)
+PERSON_FILENAMES = {"chris", "daniel", "james", "robin"}
+
+
 # Category mapping based on object names
 CATEGORY_MAP = {
     "dog": "Animal",
@@ -31,6 +35,7 @@ CATEGORY_MAP = {
     "fish": "Animal",
     "horse": "Animal",
     "watch": "Accessory",
+    "wallet": "Accessory",
     "clock": "Accessory",
     "glasses": "Accessory",
     "sunglasses": "Accessory",
@@ -51,6 +56,10 @@ CATEGORY_MAP = {
     "bike": "Vehicle",
     "motorcycle": "Vehicle",
     "truck": "Vehicle",
+    "chris": "Person",
+    "daniel": "Person",
+    "james": "Person",
+    "robin": "Person",
 }
 
 
@@ -61,9 +70,15 @@ def extract_object_name_from_filename(filename: str) -> str:
         "dog_1.jpg" -> "dog"
         "Watch_1.webp" -> "watch"
         "fruit_banana_2.jpg" -> "banana"
+        "Chris.webp" -> "Chris" (person)
+        "wallet_1.webp" -> "wallet"
     """
     # Remove extension
     name = os.path.splitext(filename)[0]
+    
+    # Check if it's a known person filename (single name, no underscored number)
+    if name.lower() in PERSON_FILENAMES:
+        return name.capitalize()
     
     # Remove numbers and underscores from end
     name = re.sub(r'_\d+$', '', name)
@@ -140,6 +155,10 @@ def generate_tags(object_name: str, category: str) -> list:
         tags.extend(["fruit", "yellow", "tropical"])
     elif object_lower == "ballpen":
         tags.extend(["pen", "writing", "office"])
+    elif object_lower == "wallet":
+        tags.extend(["billfold", "leather", "money", "cardholder"])
+    elif object_lower in PERSON_FILENAMES:
+        tags.extend(["person", "portrait", "face", "human"])
     
     # Remove duplicates while preserving order
     seen = set()

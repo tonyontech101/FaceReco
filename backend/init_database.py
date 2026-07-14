@@ -28,13 +28,17 @@ def get_base_images():
     """
     base_patterns = [
         "dog_", "cat_", "watch_", "banana_", "ballpen_", 
-        "fruit_", "balpen_", "Ballpen_", "Watch_", "Dog_"
+        "fruit_", "balpen_", "Ballpen_", "Watch_", "Dog_",
+        "wallet_", "Wallet_",
     ]
+    
+    # Single-name person files (no underscore+number suffix)
+    person_files = {"Chris.webp", "daniel.webp", "james.jpg", "robin.webp"}
     
     base_images = []
     for file in os.listdir(IMAGES_DIR):
-        # Check if filename starts with any base pattern
-        if any(file.startswith(pattern) for pattern in base_patterns):
+        # Check if filename starts with any base pattern or is a person file
+        if any(file.startswith(pattern) for pattern in base_patterns) or file in person_files:
             base_images.append(file)
     
     return base_images
