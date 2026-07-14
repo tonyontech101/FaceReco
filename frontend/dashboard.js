@@ -42,8 +42,6 @@ const identifyButton = document.getElementById("identify-button");
 // Results Elements
 const captureTimestamp = document.getElementById("capture-timestamp");
 const objectName = document.getElementById("object-name");
-const objectDescription = document.getElementById("object-description");
-const tagsContainer = document.getElementById("tags-container");
 const imageGrid = document.getElementById("image-grid");
 const emptyState = document.getElementById("empty-state");
 const scanAnotherButton = document.getElementById("scan-another-button");
@@ -70,6 +68,7 @@ let captureTime = null;
 let pendingImageData = null; // Store image data while showing modal
 let currentImageId = null; // image_id of the currently displayed result, if any
 let currentCapturedImage = null; // data URL of the image the user captured/uploaded
+let currentResultData = null; // Full result data for passing to detail page
 
 // ============ Utility Functions ============
 
@@ -394,8 +393,10 @@ async function identifyObject(imageData) {
 function displayResults(data) {
   const { object, similar_images } = data;
 
-  // Track image_id for "View Details" navigation, if the backend provided one
+  // Track image_id for "View Details" navigation
+  // Always show the button — even for unknown faces (image_id = "face_unknown")
   currentImageId = object.image_id || null;
+  currentResultData = data;
   if (viewDetailsButton) {
     viewDetailsButton.hidden = !currentImageId;
   }
@@ -431,24 +432,6 @@ function displayResults(data) {
 
   // Display object info
   objectName.textContent = object.name || "Unknown Object";
-  objectDescription.textContent = object.description || "No description available.";
-
-  // Display tags
-  tagsContainer.innerHTML = "";
-  if (object.tags && object.tags.length > 0) {
-    object.tags.forEach(tag => {
-      const tagElement = document.createElement("span");
-      tagElement.className = "tag";
-      tagElement.textContent = tag;
-      tagsContainer.appendChild(tagElement);
-    });
-  } else {
-    const noTags = document.createElement("span");
-    noTags.className = "tag";
-    noTags.textContent = "no tags";
-    noTags.style.opacity = "0.5";
-    tagsContainer.appendChild(noTags);
-  }
 
   // Display similar images (limit to 3 for featured layout)
   imageGrid.innerHTML = "";
@@ -457,6 +440,24 @@ function displayResults(data) {
     featuredImages.forEach(img => {
       const card = document.createElement("div");
       card.className = "image-card";
+      
+      // Make cards clickable if they have a valid image_id
+      if (img.image_id) {
+        card.classList.add("image-card-clickable");
+        card.setAttribute("role", "link");
+        card.setAttribute("tabindex", "0");
+        card.setAttribute("title", "Click to view details");
+        
+        card.addEventListener("click", () => {
+          window.location.href = `/image/${encodeURIComponent(img.image_id)}`;
+        });
+        card.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            window.location.href = `/image/${encodeURIComponent(img.image_id)}`;
+          }
+        });
+      }
       
       // Format similarity score as percentage
       const similarityPercent = img.similarity ? Math.round(img.similarity * 100) : null;
@@ -473,6 +474,7 @@ function displayResults(data) {
           <p class="image-card-title">${img.title || 'Similar Image'}</p>
           <p class="image-card-source">${img.source || 'Local Database'}</p>
         </div>
+        ${img.image_id ? '<div class="image-card-overlay"><span class="image-card-view-label">View Details →</span></div>' : ''}
       `;
       imageGrid.appendChild(card);
     });
@@ -740,6 +742,11 @@ if (viewDetailsButton) {
       try {
         if (currentCapturedImage) {
           sessionStorage.setItem(`capturedImage:${currentImageId}`, currentCapturedImage);
+        }
+        // For unknown faces (or any non-DB result), also store the full result
+        // metadata so the detail page can render without an API call.
+        if (currentResultData) {
+          sessionStorage.setItem(`resultData:${currentImageId}`, JSON.stringify(currentResultData));
         }
       } catch (e) {
         // sessionStorage may fail (quota/private mode); detail page falls back to DB image

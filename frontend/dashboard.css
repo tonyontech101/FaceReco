@@ -1262,6 +1262,55 @@ button:focus-visible,
   position: relative;
 }
 
+/* ── Clickable Image Cards ── */
+.image-card-clickable {
+  cursor: pointer;
+}
+
+.image-card-clickable:active {
+  transform: scale(0.97);
+  box-shadow: 0 4px 12px rgba(31, 27, 22, 0.10);
+}
+
+/* Hover overlay with "View Details" label */
+.image-card-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.65) 0%,
+    rgba(0, 0, 0, 0.15) 40%,
+    transparent 100%
+  );
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 60px;
+  opacity: 0;
+  transition: opacity 250ms ease;
+  pointer-events: none;
+}
+
+.image-card-clickable:hover .image-card-overlay {
+  opacity: 1;
+}
+
+.image-card-view-label {
+  padding: 8px 20px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.84rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  box-shadow: 0 4px 16px rgba(36, 91, 79, 0.3);
+  transform: translateY(8px);
+  transition: transform 250ms ease;
+}
+
+.image-card-clickable:hover .image-card-view-label {
+  transform: translateY(0);
+}
+
 /* Mobile responsive */
 @media (max-width: 640px) {
   .modal {

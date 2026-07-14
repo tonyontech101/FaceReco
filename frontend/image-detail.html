@@ -95,6 +95,21 @@
 
             <!-- Right Column: Metadata -->
             <div class="detail-info-column">
+              <!-- Unknown Face Banner (hidden by default) -->
+              <div class="unknown-face-banner" id="unknown-face-banner" hidden>
+                <div class="unknown-banner-icon">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                  </svg>
+                </div>
+                <div class="unknown-banner-content">
+                  <p class="unknown-banner-title">Unknown Face Detected</p>
+                  <p class="unknown-banner-text">This face was not found in the database. Consider adding a description to help identify this person in the future.</p>
+                </div>
+              </div>
+
               <div class="detail-info-header">
                 <span class="category-badge" id="detail-category-badge"></span>
                 <h1 id="detail-object-name" class="detail-object-name"></h1>
@@ -106,6 +121,19 @@
                 </div>
                 <p class="detail-field-static" id="detail-description-static"></p>
                 <textarea class="detail-field-input" id="detail-description-input" rows="4" hidden></textarea>
+              </div>
+
+              <!-- Description Prompt for Unknown Faces (hidden by default) -->
+              <div class="description-prompt" id="description-prompt" hidden>
+                <label class="description-prompt-label" for="unknown-description-input">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                  </svg>
+                  Add a description for this person
+                </label>
+                <textarea class="description-prompt-input" id="unknown-description-input" rows="3" placeholder="e.g. Male, wearing a blue jacket, approximately 30 years old..."></textarea>
+                <p class="description-prompt-hint">A good description helps with future identification.</p>
               </div>
 
               <div class="detail-field">
@@ -136,7 +164,7 @@
                 <p class="form-hint" id="detail-tags-hint" hidden>Separate tags with commas.</p>
               </div>
 
-              <div class="detail-metadata-panel">
+              <div class="detail-metadata-panel" id="detail-metadata-panel">
                 <div class="detail-metadata-row">
                   <span class="detail-metadata-key">Filename</span>
                   <span class="detail-metadata-value" id="detail-filename"></span>
@@ -154,8 +182,25 @@
                 </button>
                 <button class="primary-action" id="save-button" type="button" hidden>Save Changes</button>
                 <button class="secondary-action" id="cancel-edit-button" type="button" hidden>Cancel</button>
+                <!-- Save to Database button for unknown faces -->
+                <button class="primary-action save-to-db-button" id="save-to-db-button" type="button" hidden>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                    <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                    <polyline points="7 3 7 8 15 8"></polyline>
+                  </svg>
+                  Save to Database
+                </button>
                 <a href="/dashboard" class="secondary-action detail-back-link">Back to Dashboard</a>
               </div>
+            </div>
+
+            <!-- Similar Images Section (full width, spans both columns) -->
+            <div class="detail-similar-section" id="detail-similar-section" hidden>
+              <div class="section-header">
+                <h2 class="section-title">Similar Images</h2>
+              </div>
+              <div class="featured-grid" id="detail-similar-grid"></div>
             </div>
           </div>
         </div>
