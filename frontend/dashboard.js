@@ -44,6 +44,7 @@ const captureTimestamp = document.getElementById("capture-timestamp");
 const objectName = document.getElementById("object-name");
 const imageGrid = document.getElementById("image-grid");
 const emptyState = document.getElementById("empty-state");
+const capturedImageCard = document.getElementById("captured-image-card");
 const scanAnotherButton = document.getElementById("scan-another-button");
 const viewDetailsButton = document.getElementById("view-details-button");
 
@@ -412,7 +413,16 @@ function displayResults(data) {
     currentCapturedImage = null;
   }
   if (currentCapturedImage) {
+    // Hide the card if the captured image fails to load (avoids empty black box)
+    heroImage.onerror = () => {
+      if (capturedImageCard) capturedImageCard.hidden = true;
+    };
     heroImage.src = currentCapturedImage;
+    if (capturedImageCard) capturedImageCard.hidden = false;
+  } else {
+    // No captured/uploaded image to show — remove the card entirely
+    heroImage.removeAttribute("src");
+    if (capturedImageCard) capturedImageCard.hidden = true;
   }
   
   // Display capture timestamp
